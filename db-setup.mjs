@@ -188,6 +188,7 @@ async function main() {
     console.log('Database setup completed successfully.');
   } catch (error) {
     console.error('Error during setup:', error);
+    process.exitCode = 1;
   } finally {
     await client.end();
   }

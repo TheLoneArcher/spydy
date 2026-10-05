@@ -10,7 +10,6 @@ export default function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'admin' | 'volunteer'>('volunteer');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
@@ -36,61 +35,42 @@ export default function AuthPage() {
             .eq('id', data.user.id)
             .single();
           
-          if (profError) {
-             console.error('Profile fetch error:', profError);
-             setError('Account setup incomplete. Please contact support or re-register.');
-             setLoading(false);
-             return;
-          } else if (profile?.role === 'admin') {
-            router.push('/map');
-          } else {
-            router.push('/my-tasks');
+          if (profError || !profile) {
+            await supabase.auth.signOut();
+            throw new Error(
+              profError?.code === 'PGRST205'
+                ? 'The database is not set up yet. Apply the Supabase migration, then try again.'
+                : 'Account setup is incomplete. Please contact support.'
+            );
           }
+
+          router.push(profile.role === 'admin' || profile.role === 'dispatcher' ? '/map' : '/submit-report');
         }
       } else {
         const { data: signUpData, error: authError } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: {
-              full_name: fullName,
-              role: role
-            }
+            data: { full_name: fullName },
+            emailRedirectTo: `${window.location.origin}/`
           }
         });
 
         if (authError) throw authError;
 
-        const newUser = signUpData.user;
-        if (newUser) {
-          // 1. Create the profile row
-          const { error: profileError } = await supabase.from('profiles').insert({
-            id: newUser.id,
-            full_name: fullName,
-            role: role,
-          });
-          if (profileError) throw profileError;
-
-          // 2. If volunteer, create the volunteers row too
-          if (role === 'volunteer') {
-            const { error: volError } = await supabase.from('volunteers').insert({
-              profile_id: newUser.id,
-              skills: [],
-              is_available: true,
-            });
-            if (volError) throw volError;
-          }
+        if (!signUpData.session) {
+          setError('Account created. Check your email to confirm your account, then sign in.');
+          setIsLogin(true);
+          return;
         }
 
-        if (role === 'admin') router.push('/map');
-        else router.push('/my-tasks');
+        router.push('/submit-report');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Auth error:', err);
-      setError(err.message || 'Authentication failed. Please check your credentials.');
+      setError(err instanceof Error ? err.message : 'Authentication failed. Please check your credentials.');
     } finally {
-      // Small delay to prevent flashing if router.push takes a moment
-      setTimeout(() => setLoading(false), 500);
+      setLoading(false);
     }
   };
 
@@ -161,25 +141,6 @@ export default function AuthPage() {
                   />
                 </div>
                 
-                <div>
-                  <label className="block text-[12px] font-medium text-gray-400 mb-1">Role</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setRole('admin')}
-                      className={`py-1.5 px-3 rounded text-[12px] font-medium transition-colors border ${role === 'admin' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-transparent border-[#374151] text-gray-400 hover:border-gray-500'}`}
-                    >
-                       Dispatcher
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRole('volunteer')}
-                      className={`py-1.5 px-3 rounded text-[12px] font-medium transition-colors border ${role === 'volunteer' ? 'bg-blue-600 border-blue-600 text-white' : 'bg-transparent border-[#374151] text-gray-400 hover:border-gray-500'}`}
-                    >
-                       Volunteer
-                    </button>
-                  </div>
-                </div>
               </>
             )}
 
@@ -206,7 +167,7 @@ export default function AuthPage() {
                 className="w-full bg-[#111827] border border-[#374151] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 transition-colors"
                 placeholder="••••••••"
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
 
@@ -224,7 +185,7 @@ export default function AuthPage() {
             onClick={() => { setIsLogin(!isLogin); setError(''); }}
             className="w-full mt-6 text-[12px] text-gray-400 hover:text-white transition-colors"
           >
-            {isLogin ? "Don&apos;t have an account? Sign up" : "Already have an account? Sign in"}
+            {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
           </button>
         </div>
       </div>

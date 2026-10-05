@@ -1,4 +1,4 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function proxy(request: NextRequest) {
@@ -9,17 +9,14 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        get(name: string) { return request.cookies.get(name)?.value },
-        set(name: string, value: string, options: CookieOptions) {
-          request.cookies.set({ name, value, ...options })
+        getAll() { return request.cookies.getAll() },
+        setAll(cookiesToSet) {
           response = NextResponse.next({ request: { headers: request.headers } })
-          response.cookies.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          request.cookies.set({ name, value: '', ...options })
-          response = NextResponse.next({ request: { headers: request.headers } })
-          response.cookies.set({ name, value: '', ...options })
-        },
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set({ name, value, ...options })
+            response.cookies.set({ name, value, ...options })
+          })
+        }
       },
     }
   )
@@ -31,8 +28,11 @@ export async function proxy(request: NextRequest) {
   if (pathname === '/') {
     if (user) {
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-      const role = profile?.role ?? 'volunteer'
-      return NextResponse.redirect(new URL(role === 'admin' ? '/map' : '/my-tasks', request.url))
+      if (!profile) {
+        await supabase.auth.signOut()
+        return response
+      }
+      return NextResponse.redirect(new URL(profile.role === 'admin' || profile.role === 'dispatcher' ? '/map' : '/submit-report', request.url))
     }
     return response
   }
@@ -43,17 +43,21 @@ export async function proxy(request: NextRequest) {
   }
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  const role = profile?.role ?? 'volunteer'
+  if (!profile) {
+    await supabase.auth.signOut()
+    return NextResponse.redirect(new URL('/', request.url))
+  }
+  const role = profile.role
 
   // Admin-only routes
-  const adminRoutes = ['/map', '/tasks', '/volunteers', '/analytics', '/reports', '/resources']
-  if (adminRoutes.some(r => pathname.startsWith(r)) && role !== 'admin') {
-    return NextResponse.redirect(new URL('/my-tasks', request.url))
+  const dispatcherRoutes = ['/map', '/tasks', '/volunteers', '/analytics', '/reports', '/resources']
+  if (dispatcherRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`)) && role !== 'dispatcher') {
+    return NextResponse.redirect(new URL('/submit-report', request.url))
   }
 
   // Volunteer-only routes
-  const volunteerRoutes = ['/my-tasks', '/nearby', '/submit-report', '/my-profile']
-  if (volunteerRoutes.some(r => pathname.startsWith(r)) && role !== 'volunteer') {
+  const volunteerRoutes = ['/my-tasks', '/nearby']
+  if (volunteerRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`)) && role !== 'civilian') {
     return NextResponse.redirect(new URL('/map', request.url))
   }
 
