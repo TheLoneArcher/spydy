@@ -12,6 +12,7 @@ export default function AuthPage() {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
     setError('');
+    setNotice('');
 
     try {
       if (isLogin) {
@@ -87,7 +89,7 @@ export default function AuthPage() {
         if (authError) throw authError;
 
         if (!signUpData.session) {
-          setError('Account created. Check your email to confirm your account, then sign in.');
+          setNotice('Email sent. Check your inbox to confirm your account, then sign in.');
           setIsLogin(true);
           return;
         }
@@ -153,6 +155,11 @@ export default function AuthPage() {
                 {error}
               </div>
             )}
+            {notice && (
+              <div className="bg-emerald-950/30 border border-emerald-900/50 text-emerald-300 text-[13px] rounded p-3 mb-4">
+                {notice}
+              </div>
+            )}
             
             {!isLogin && (
               <>
@@ -210,7 +217,7 @@ export default function AuthPage() {
 
           <button 
             type="button"
-            onClick={() => { setIsLogin(!isLogin); setError(''); }}
+            onClick={() => { setIsLogin(!isLogin); setError(''); setNotice(''); }}
             className="w-full mt-6 text-[12px] text-gray-400 hover:text-white transition-colors"
           >
             {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
