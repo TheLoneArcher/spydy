@@ -55,7 +55,10 @@ export default function MapPage() {
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
       const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
       setCurrentUser(prof);
 

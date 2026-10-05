@@ -54,17 +54,11 @@ interface Props {
 
 export default function MapClient({ reports, onSelectReport, allowClick, onMapClick, center, zoom, volunteerLocations }: Props) {
   const [mounted, setMounted] = useState(false);
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
   const defaultCenter: [number, number] = center ?? [13.6288, 79.4192];
 
   useEffect(() => {
     setMounted(true);
-    const updateTheme = () => setResolvedTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
-    updateTheme();
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => {
-      observer.disconnect();
       setMounted(false);
     };
   }, []);
@@ -83,23 +77,9 @@ export default function MapClient({ reports, onSelectReport, allowClick, onMapCl
         >
           <ChangeView center={defaultCenter} zoom={zoom ?? 13} />
           <TileLayer
-            key={resolvedTheme}
-            attribution="© OpenStreetMap contributors © CARTO"
-            subdomains="abcd"
+            attribution="&copy; OpenStreetMap contributors"
             maxZoom={19}
-            url={resolvedTheme === 'dark'
-              ? 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png'
-              : 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'}
-          />
-          <TileLayer
-            key={`${resolvedTheme}-labels`}
-            attribution=""
-            subdomains="abcd"
-            maxZoom={19}
-            opacity={0.5}
-            url={resolvedTheme === 'dark'
-              ? 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png'
-              : 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png'}
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
           {allowClick && onMapClick && <MapClickHandler onClick={onMapClick} />}
