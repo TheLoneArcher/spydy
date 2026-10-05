@@ -61,15 +61,15 @@ async function main() {
 
   await db.query(`
     insert into public.volunteer_profiles (user_id, skills, location, on_duty, max_radius_km)
-    values ($1, array['logistics', 'heavy_lifting']::public.skill_type[], st_setsrid(st_makepoint(72.8777, 19.0760), 4326)::geography, true, 20)
+    values ($1, array['logistics', 'heavy_lifting']::public.skill_type[], st_setsrid(st_makepoint(79.4192, 13.6288), 4326)::geography, true, 20)
     on conflict (user_id) do update set skills = excluded.skills, location = excluded.location, on_duty = true;
 
     insert into public.reports (reporter_id, title, description, category, severity, status, location, location_label)
     values
-      ($2, 'Large pothole on MG Road', 'Deep pothole causing traffic danger near the main crossing.', 'pothole', 'critical', 'pending', st_setsrid(st_makepoint(72.8258, 18.9322), 4326)::geography, 'MG Road, South Mumbai'),
-      ($3, 'Broken streetlight on Linking Road', 'Streetlight has been dark since last night.', 'streetlight', 'moderate', 'assigned', st_setsrid(st_makepoint(72.8347, 19.0660), 4326)::geography, 'Linking Road, Bandra'),
-      ($3, 'Overflowing garbage bin near Andheri Station', 'Waste is spilling onto the pavement.', 'garbage', 'critical', 'pending', st_setsrid(st_makepoint(72.8465, 19.1197), 4326)::geography, 'Andheri East Station'),
-      ($2, 'Blocked drainage at Juhu Beach Road', 'Blocked drain is causing waterlogging after rain.', 'drainage', 'moderate', 'pending', st_setsrid(st_makepoint(72.8267, 19.1075), 4326)::geography, 'Juhu Beach Road')
+      ($2, 'Large pothole near Tirupati bus stand', 'Deep pothole causing traffic danger near the main crossing.', 'pothole', 'critical', 'pending', st_setsrid(st_makepoint(79.4198, 13.6287), 4326)::geography, 'Tirupati bus stand, Andhra Pradesh'),
+      ($3, 'Broken streetlight on Renigunta Road', 'Streetlight has been dark since last night.', 'streetlight', 'moderate', 'assigned', st_setsrid(st_makepoint(79.5129, 13.6355), 4326)::geography, 'Renigunta Road, Tirupati'),
+      ($3, 'Overflowing garbage bin near Alipiri', 'Waste is spilling onto the pavement.', 'garbage', 'critical', 'pending', st_setsrid(st_makepoint(79.4067, 13.6350), 4326)::geography, 'Alipiri Gate, Tirupati, Andhra Pradesh'),
+      ($2, 'Blocked drainage near Renigunta railway station', 'Blocked drain is causing waterlogging after rain.', 'drainage', 'moderate', 'pending', st_setsrid(st_makepoint(79.5122, 13.6366), 4326)::geography, 'Renigunta railway station, Andhra Pradesh')
     on conflict do nothing;
 
     insert into public.tasks (report_id, volunteer_id, assigned_by, status, notes)
@@ -85,8 +85,8 @@ async function main() {
       and not exists (select 1 from public.report_events e where e.report_id = r.id and e.kind = 'assigned');
 
     insert into public.resources (name, category, quantity_total, quantity_available, location_label, managed_by)
-    values ('First aid kits', 'medical_supply', 20, 15, 'Command Center', $4),
-           ('Municipal waste truck', 'vehicle', 5, 3, 'Andheri Depot', $4)
+        values ('First aid kits', 'medical_supply', 20, 15, 'Tirupati command center', $4),
+          ('Municipal waste truck', 'vehicle', 5, 3, 'Renigunta depot', $4)
     on conflict do nothing;
   `, [volunteerId, civilianId, civilianId, dispatcherId]);
 

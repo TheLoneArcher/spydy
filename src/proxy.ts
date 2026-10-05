@@ -56,7 +56,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Volunteer-only routes
-  const volunteerRoutes = ['/my-tasks', '/nearby']
+  const volunteerRoutes = ['/my-tasks', '/nearby', '/my-reports']
   if (volunteerRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`)) && role !== 'civilian') {
     return NextResponse.redirect(new URL('/map', request.url))
   }

@@ -35,6 +35,7 @@ export function Sidebar({ role, profile }: SidebarProps) {
     { label: 'My Tasks',      href: '/my-tasks',      icon: ClipboardList },
     { label: 'Nearby Issues', href: '/nearby',         icon: Map },
     { label: 'Submit Report', href: '/submit-report',  icon: AlertTriangle },
+    { label: 'My Reports',    href: '/my-reports',     icon: FileText },
     { label: 'Profile',       href: '/my-profile',     icon: UserCircle },
   ];
 

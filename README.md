@@ -6,14 +6,15 @@ ResponSys coordinates civilian reports, volunteers, and dispatchers through Supa
 
 1. Copy `.env.example` to `.env.local` and fill in the values from the Supabase project.
 2. Apply `0001_roles_and_core.sql` in the Supabase SQL editor. The migration creates `public.profiles`, the signup trigger, roles, RLS policies, and RPCs.
-3. Confirm the migration succeeded with:
+3. Apply `supabase/migrations/0002_feedback_and_resolution.sql` after `0001`. It adds report priority votes and civilian resolution confirmation.
+4. Confirm the migration succeeded with:
 
 	```sql
 	select to_regclass('public.profiles');
 	```
 
 	The result must be `public.profiles` before sign-in can complete.
-4. Create the first admin manually after signing up:
+5. Create the first admin manually after signing up:
 
 	```sql
 	update public.profiles
@@ -21,7 +22,7 @@ ResponSys coordinates civilian reports, volunteers, and dispatchers through Supa
 	where id = (select id from auth.users where email = 'you@example.com');
 	```
 
-5. Start the app:
+6. Start the app:
 
 	```bash
 	npm install
