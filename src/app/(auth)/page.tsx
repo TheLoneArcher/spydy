@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
@@ -110,8 +111,14 @@ export default function AuthPage() {
       <div className="hidden lg:flex w-[40%] bg-[#111827] flex-col justify-between border-r border-[#1F2937] p-16">
         <div>
           <div className="flex items-center gap-3 mb-20">
-            <div className="bg-blue-600 w-8 h-8 rounded flex items-center justify-center font-bold text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]">R</div>
-            <span className="font-semibold text-lg text-white tracking-tight">ResponSys</span>
+            <Image
+              src="/logos/responsys-logo-horizontal-dark.svg"
+              alt="ResponSys"
+              width={220}
+              height={65}
+              priority
+              className="h-auto w-[220px]"
+            />
           </div>
           <h1 className="text-3xl font-medium text-white mb-6 leading-tight">
             Resilient response <br /> for crisis situations.

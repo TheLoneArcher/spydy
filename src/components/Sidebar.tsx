@@ -1,10 +1,11 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Map, Users, ClipboardList, BarChart3, LogOut, FileText,
-  AlertTriangle, UserCircle, ChevronRight, Radio, Package
+  AlertTriangle, UserCircle, ChevronRight, Package
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
@@ -44,10 +45,14 @@ export function Sidebar({ role, profile }: SidebarProps) {
     <div className="flex h-full flex-col">
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 h-14 border-b border-[#1F2937] flex-shrink-0">
-        <div className="w-7 h-7 bg-blue-600 rounded flex items-center justify-center flex-shrink-0">
-          <Radio className="w-4 h-4 text-white" />
-        </div>
-        <span className="font-semibold text-white text-[15px] tracking-tight">ResponSys</span>
+        <Image
+          src="/logos/responsys-logo-horizontal-dark.svg"
+          alt="ResponSys"
+          width={150}
+          height={44}
+          priority
+          className="h-auto w-[150px]"
+        />
       </div>
 
       {/* Nav */}
