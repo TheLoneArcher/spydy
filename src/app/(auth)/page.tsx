@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
@@ -13,6 +13,34 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    let active = true;
+
+    const redirectExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!active || !session?.user) return;
+
+      const { data: profile, error: profError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single();
+
+      if (!active) return;
+      if (profError || !profile) {
+        setError('Account setup is incomplete. Please contact support.');
+        return;
+      }
+
+      router.replace(profile.role === 'admin' || profile.role === 'dispatcher' ? '/map' : '/submit-report');
+    };
+
+    void redirectExistingSession();
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
