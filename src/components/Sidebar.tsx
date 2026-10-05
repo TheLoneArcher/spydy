@@ -26,6 +26,7 @@ export function Sidebar({ role, profile }: SidebarProps) {
     { label: 'Dashboard', href: '/map',        icon: Map },
     { label: 'Tasks',     href: '/tasks',      icon: ClipboardList },
     { label: 'Volunteers',href: '/volunteers', icon: Users },
+    { label: 'Applications', href: '/admin/volunteers', icon: UserCircle },
     { label: 'Resources', href: '/resources',  icon: Package },
     { label: 'Analytics', href: '/analytics',  icon: BarChart3 },
     { label: 'Reports',   href: '/reports',    icon: FileText },
@@ -85,19 +86,21 @@ export function Sidebar({ role, profile }: SidebarProps) {
 
       {/* User */}
       <div className="border-t border-[#1F2937] p-3">
-        <div className="flex items-center gap-3 px-1 py-1">
-          <div className="w-8 h-8 rounded-full bg-blue-900/40 border border-blue-800/60 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">
-            {initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] font-medium text-white truncate">{profile?.full_name || '—'}</p>
-            <div className="flex items-center gap-1.5 mt-0.5">
-              {role === 'volunteer' && (
-                <div className={cn('w-1.5 h-1.5 rounded-full', profile?.is_available ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-[#4B5563]')} />
-              )}
-              <p className="text-[11px] text-[#6B7280] capitalize">{role}{role === 'volunteer' && (profile?.is_available ? ' • On Duty' : ' • Off Duty')}</p>
+        <div className="flex items-center gap-2">
+          <Link href="/profile" className="flex min-w-0 flex-1 items-center gap-3 px-1 py-1 rounded-md hover:bg-[#1a2235] transition-colors">
+            <div className="w-8 h-8 rounded-full bg-blue-900/40 border border-blue-800/60 flex items-center justify-center text-blue-400 text-xs font-bold flex-shrink-0">
+              {initials}
             </div>
-          </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[13px] font-medium text-white truncate">{profile?.full_name || '—'}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {role === 'volunteer' && (
+                  <div className={cn('w-1.5 h-1.5 rounded-full', profile?.is_available ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-[#4B5563]')} />
+                )}
+                <p className="text-[11px] text-[#6B7280] capitalize">{role}{role === 'volunteer' && (profile?.is_available ? ' • On Duty' : ' • Off Duty')}</p>
+              </div>
+            </div>
+          </Link>
           <button onClick={handleLogout} title="Sign out" className="text-[#6B7280] hover:text-white transition-colors p-1 rounded">
             <LogOut className="w-4 h-4" />
           </button>

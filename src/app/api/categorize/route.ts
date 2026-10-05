@@ -1,4 +1,13 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
+
+const resultSchema = z.object({
+  category: z.enum(['pothole', 'streetlight', 'garbage', 'water_leakage', 'road_damage', 'drainage', 'other']),
+  severity: z.enum(['critical', 'moderate', 'low']),
+  confidence: z.number().min(0).max(1),
+  is_real_world_photo: z.boolean().optional(),
+  reason: z.string().max(500).optional(),
+});
 
 export async function POST(req: Request) {
   try {
@@ -9,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     if (!process.env.OPENROUTER_API_KEY) {
-      return NextResponse.json({ error: 'AI categorization is not configured on the server' }, { status: 503 });
+      return NextResponse.json({ available: false, reason: 'AI is not configured.' });
     }
 
     const messages: any[] = [
@@ -22,7 +31,8 @@ Respond ONLY with a valid JSON object matching this schema:
   "category": "pothole" | "streetlight" | "garbage" | "water_leakage" | "road_damage" | "drainage" | "other",
   "severity": "critical" | "moderate" | "low",
   "confidence": number (between 0 and 1),
-  "suggested_title": string (a concise, clear title based on the input)
+  "is_real_world_photo": boolean,
+  "reason": string
 }`
       }
     ];
@@ -60,6 +70,7 @@ Respond ONLY with a valid JSON object matching this schema:
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
         messages: messages,
+        models: (process.env.OPENROUTER_MODEL || '').split(',').map(model => model.trim()).filter(Boolean),
         response_format: { type: 'json_object' },
         max_tokens: 600,
         temperature: 0.1,
@@ -85,21 +96,18 @@ Respond ONLY with a valid JSON object matching this schema:
       const result = JSON.parse(resultText);
       const categories = ['pothole', 'streetlight', 'garbage', 'water_leakage', 'road_damage', 'drainage', 'other'];
       const severities = ['critical', 'moderate', 'low'];
-      return NextResponse.json({
-        category: categories.includes(result.category) ? result.category : 'other',
-        severity: severities.includes(result.severity) ? result.severity : 'moderate',
-        confidence: typeof result.confidence === 'number' ? Math.max(0, Math.min(1, result.confidence)) : 0,
-        suggested_title: typeof result.suggested_title === 'string' ? result.suggested_title.slice(0, 140) : '',
-      });
+      const parsed = resultSchema.safeParse(result);
+      if (!parsed.success) return NextResponse.json({ available: false, reason: 'AI returned an invalid suggestion.' });
+      return NextResponse.json({ available: true, ...parsed.data });
     } catch (parseError) {
       console.error('Failed to parse OpenRouter response:', resultText);
-      return NextResponse.json({ error: 'Invalid response from AI model' }, { status: 500 });
+      return NextResponse.json({ available: false, reason: 'AI returned an invalid suggestion.' });
     }
   } catch (error) {
     console.error('Categorize API error:', error);
     const message = error instanceof Error && error.name === 'TimeoutError'
       ? 'AI categorization timed out. Try again or choose a category manually.'
       : 'AI categorization could not be completed. Choose a category manually.';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ available: false, reason: message });
   }
 }

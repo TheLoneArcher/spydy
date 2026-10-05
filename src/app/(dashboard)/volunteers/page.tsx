@@ -20,8 +20,8 @@ export default function VolunteersPage() {
 
   const fetchVolunteers = async () => {
     const { data } = await supabase
-      .from('volunteers')
-      .select('id, profile_id, skills, last_location, is_available, profiles(full_name), updated_at')
+      .from('volunteer_profiles')
+      .select('user_id, skills, location, on_duty, profiles:user_id(full_name), updated_at')
       .order('updated_at', { ascending: false });
     setVolunteers(data ?? []);
     setLoading(false);
@@ -30,7 +30,7 @@ export default function VolunteersPage() {
   useEffect(() => {
     fetchVolunteers();
     const chan = supabase.channel('volunteers_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, fetchVolunteers)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteer_profiles' }, fetchVolunteers)
       .subscribe();
     return () => { supabase.removeChannel(chan); };
   }, []);
@@ -42,7 +42,7 @@ export default function VolunteersPage() {
         .from('tasks')
         .select('id')
         .eq('volunteer_id', id)
-        .in('status', ['dispatched', 'in_progress']);
+        .in('status', ['assigned', 'accepted', 'en_route', 'on_site', 'in_progress']);
       
       if (activeTasks && activeTasks.length > 0) {
         alert('This volunteer still has an active task. Resolve the task first.');
@@ -50,7 +50,7 @@ export default function VolunteersPage() {
       }
     }
 
-    const { error } = await supabase.from('volunteers').update({ is_available: !cur }).eq('id', id);
+    const { error } = await supabase.from('volunteer_profiles').update({ on_duty: !cur }).eq('user_id', id);
     if (error) console.error('Toggle error:', error.message);
     else fetchVolunteers();
   };
@@ -67,15 +67,15 @@ export default function VolunteersPage() {
     const matchSearch = name.includes(search.toLowerCase()) || vSkills.some((s: string) => s.includes(search.toLowerCase()));
     const matchSkill  = filterSkill === 'all' || vSkills.includes(filterSkill);
     const matchStatus = filterStatus === 'all'
-      || (filterStatus === 'available' && v.is_available)
-      || (filterStatus === 'busy' && !v.is_available);
+      || (filterStatus === 'available' && v.on_duty)
+      || (filterStatus === 'busy' && !v.on_duty);
     return matchSearch && matchSkill && matchStatus;
   });
 
   const stats = {
     total:     volunteers.length,
-    available: volunteers.filter(v => v.is_available).length,
-    busy:      volunteers.filter(v => !v.is_available).length,
+    available: volunteers.filter(v => v.on_duty).length,
+    busy:      volunteers.filter(v => !v.on_duty).length,
   };
 
   return (
@@ -161,7 +161,7 @@ export default function VolunteersPage() {
               {filtered.map((vol) => {
                 const initials = vol.profiles?.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0,2).toUpperCase() ?? '??';
                 return (
-                  <tr key={vol.id} className="border-b border-[#1F2937]/50 hover:bg-[#1a2235] transition-colors">
+                  <tr key={vol.user_id} className="border-b border-[#1F2937]/50 hover:bg-[#1a2235] transition-colors">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
                         <div className="w-8 h-8 rounded-full bg-blue-900/30 border border-blue-800/40 flex items-center justify-center text-blue-400 text-[11px] font-bold flex-shrink-0">
@@ -169,7 +169,7 @@ export default function VolunteersPage() {
                         </div>
                         <div>
                           <p className="font-medium text-white text-[13px]">{vol.profiles?.full_name ?? '—'}</p>
-                          <p className="text-[11px] text-[#64748B]">{vol.phone ?? 'No phone'}</p>
+                          <p className="text-[11px] text-[#64748B]">Active field profile</p>
                         </div>
                       </div>
                     </td>
@@ -186,9 +186,9 @@ export default function VolunteersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3.5">
-                      <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${vol.is_available ? 'text-emerald-400' : 'text-[#94A3B8]'}`}>
-                        <Circle className={`w-2 h-2 fill-current ${vol.is_available ? 'text-emerald-500' : 'text-[#64748B]'}`} />
-                        {vol.is_available ? 'Available' : 'On task'}
+                      <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${vol.on_duty ? 'text-emerald-400' : 'text-[#94A3B8]'}`}>
+                        <Circle className={`w-2 h-2 fill-current ${vol.on_duty ? 'text-emerald-500' : 'text-[#64748B]'}`} />
+                        {vol.on_duty ? 'Available' : 'On task'}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-[12px] text-[#64748B]">
@@ -196,14 +196,14 @@ export default function VolunteersPage() {
                     </td>
                     <td className="px-4 py-3.5 text-right">
                       <button
-                        onClick={() => toggleAvailability(vol.id, vol.is_available)}
+                        onClick={() => toggleAvailability(vol.user_id, vol.on_duty)}
                         className={`px-3 py-1 rounded text-[11px] font-medium border transition-colors ${
-                          vol.is_available
+                          vol.on_duty
                             ? 'text-amber-400 border-amber-500/20 bg-amber-500/10 hover:bg-amber-500/20'
                             : 'text-emerald-400 border-emerald-500/20 bg-emerald-500/10 hover:bg-emerald-500/20'
                         }`}
                       >
-                        {vol.is_available ? 'Set busy' : 'Set free'}
+                        {vol.on_duty ? 'Set busy' : 'Set free'}
                       </button>
                     </td>
                   </tr>

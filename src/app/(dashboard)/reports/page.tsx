@@ -13,7 +13,8 @@ const STA: Record<string, string> = {
   pending:     'text-slate-400 bg-slate-500/10 border-slate-500/20',
   dispatched:  'text-purple-400 bg-purple-500/10 border-purple-500/20',
   in_progress: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  verified:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  resolved:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  closed:      'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
 };
 
 export default function ReportsPage() {
@@ -26,15 +27,15 @@ export default function ReportsPage() {
   useEffect(() => {
     const fetch = async () => {
       const { data } = await supabase
-        .from('need_reports')
-        .select('*, profiles(full_name), tasks(volunteers(profiles(full_name)))')
+        .from('reports')
+        .select('*, profiles:reporter_id(full_name), tasks(volunteer_id)')
         .order('created_at', { ascending: false });
       setReports(data ?? []);
       setLoading(false);
     };
     fetch();
     const chan = supabase.channel('reports_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'need_reports' }, fetch)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, fetch)
       .subscribe();
     return () => { supabase.removeChannel(chan); };
   }, []);
@@ -87,7 +88,9 @@ export default function ReportsPage() {
           <option value="pending">Pending</option>
           <option value="dispatched">Dispatched</option>
           <option value="in_progress">In Progress</option>
-          <option value="verified">Resolved</option>
+          <option value="resolved">Resolved</option>
+          <option value="resolved_pending_confirmation">Awaiting confirmation</option>
+          <option value="closed">Closed</option>
         </select>
       </div>
 
@@ -109,13 +112,13 @@ export default function ReportsPage() {
                   <tr><td colSpan={6} className="px-4 py-12 text-center text-[13px] text-[#64748B]">No reports match your filters.</td></tr>
                 )}
                 {filtered.map(r => {
-                  const assigned = r.tasks?.[0]?.volunteers?.profiles?.full_name;
+                  const assigned = r.tasks?.[0]?.volunteer_id ? 'Assigned volunteer' : null;
                   return (
                     <tr key={r.id} className="border-b border-[#1F2937]/50 hover:bg-[#1a2235] transition-colors group">
                       <td className="px-4 py-3.5 max-w-[280px]">
                         <div className="flex items-center gap-3">
                           <div className="w-7 h-7 rounded bg-[#1F2937] flex items-center justify-center flex-shrink-0">
-                            {r.status === 'verified'
+                            {['resolved', 'resolved_pending_confirmation', 'closed'].includes(r.status)
                               ? <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                               : <FileText className="w-4 h-4 text-blue-500" />}
                           </div>

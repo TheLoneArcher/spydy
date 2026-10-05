@@ -12,6 +12,7 @@ export default function SubmitReportPage() {
   const [gpsLabel, setGpsLabel] = useState('');
   const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
   const [capturedAt, setCapturedAt] = useState<string | null>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<{ category: string; severity: string; confidence: number } | null>(null);
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -90,9 +91,22 @@ export default function SubmitReportPage() {
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setImagePreview(canvas.toDataURL('image/jpeg', 0.86));
+    const image = canvas.toDataURL('image/jpeg', 0.86);
+    setImagePreview(image);
+    void suggestCategory(image);
     setCapturedAt(new Date().toISOString());
     closeCamera();
+  };
+
+  const suggestCategory = async (imageUrl: string) => {
+    setAiSuggestion(null);
+    try {
+      const response = await fetch('/api/categorize', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageUrl }) });
+      const result = await response.json();
+      if (result.available) setAiSuggestion(result);
+    } catch {
+      setAiSuggestion(null);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent, bypassDuplicateCheck = false) => {
@@ -133,7 +147,7 @@ export default function SubmitReportPage() {
       }
     }
 
-    const { error: dbErr } = await supabase.rpc('submit_report', {
+    const { data: reportId, error: dbErr } = await supabase.rpc('submit_report', {
       p_title: form.title,
       p_description: form.description,
       p_category: form.category,
@@ -147,12 +161,20 @@ export default function SubmitReportPage() {
     setLoading(false);
     if (dbErr) { setError(dbErr.message); return; }
 
+    if (reportId && imagePreview) {
+      const blob = await (await fetch(imagePreview)).blob();
+      const path = `${reportId}/${crypto.randomUUID()}.jpg`;
+      const { error: uploadError } = await supabase.storage.from('report-media').upload(path, blob, { contentType: 'image/jpeg', upsert: false });
+      if (!uploadError) await supabase.from('report_media').insert({ report_id: reportId, uploaded_by: (await supabase.auth.getUser()).data.user?.id, kind: 'original', storage_path: path, lat, lng: lon, accuracy_m: gpsAccuracy, captured_at: capturedAt, ai_label: aiSuggestion });
+    }
+
     setSuccess(true);
     setForm({ title: '', description: '', category: 'other', severity: 'moderate', location_label: '', lat: '', lon: '' });
     setImagePreview(null);
     setGpsLabel('');
     setGpsAccuracy(null);
     setCapturedAt(null);
+    setAiSuggestion(null);
     setDuplicateWarning(null);
     setTimeout(() => setSuccess(false), 5000);
   };
@@ -257,6 +279,12 @@ export default function SubmitReportPage() {
                 <div className="mt-1 font-mono text-emerald-300/80">
                   {form.lat}, {form.lon}{gpsAccuracy !== null ? ` • ±${Math.round(gpsAccuracy)} m` : ''}{capturedAt ? ` • ${new Date(capturedAt).toLocaleTimeString()}` : ''}
                 </div>
+              </div>
+            )}
+            {aiSuggestion && (
+              <div className="flex items-center justify-between rounded-md border border-info/30 bg-info/10 px-3 py-2 text-[11px] text-info">
+                <span>Suggested: <strong className="capitalize">{aiSuggestion.category.replace('_', ' ')}</strong> ({Math.round(aiSuggestion.confidence * 100)}%)</span>
+                <button type="button" onClick={() => setForm(current => ({ ...current, category: aiSuggestion.category, severity: aiSuggestion.severity }))} className="font-semibold underline">Use suggestion</button>
               </div>
             )}
           </div>

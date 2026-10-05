@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { IBM_Plex_Mono, IBM_Plex_Sans, Source_Serif_4 } from 'next/font/google';
+import { ThemeProvider } from '@/components/ThemeProvider';
 import './globals.css';
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
+const plexSans = IBM_Plex_Sans({ subsets: ['latin'], variable: '--font-plex-sans' });
+const plexMono = IBM_Plex_Mono({ subsets: ['latin'], weight: ['400', '500', '600'], variable: '--font-plex-mono' });
+const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-source-serif' });
 
 export const metadata: Metadata = {
   title: 'ResponSys — Civic Issue Reporting',
@@ -15,9 +18,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="bg-[#0A0E17]">
-      <body className={`${inter.variable} font-sans bg-[#0A0E17] text-[#F1F5F9] min-h-screen flex flex-col w-full overflow-x-hidden`}>
-        {children}
+    <html lang="en" suppressHydrationWarning>
+      <body className={`${plexSans.variable} ${plexMono.variable} ${sourceSerif.variable} font-sans min-h-screen flex flex-col w-full overflow-x-hidden`}>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );

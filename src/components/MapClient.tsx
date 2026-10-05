@@ -1,8 +1,8 @@
 'use client';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect, useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { useEffect, useState } from 'react';
+import { MapContainer, TileLayer, CircleMarker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { parsePoint } from '@/lib/geo';
 
 function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
@@ -19,42 +19,22 @@ function ChangeView({ center, zoom }: { center: [number, number], zoom: number }
   return null;
 }
 
-const severityConfig: Record<string, { color: string; pulse: boolean }> = {
-  critical: { color: '#EF4444', pulse: true },
-  moderate: { color: '#F59E0B', pulse: false },
-  low:      { color: '#3B82F6', pulse: false },
+const severityConfig: Record<string, { color: string; radius: number }> = {
+  critical: { color: 'var(--map-critical)', radius: 9 },
+  moderate: { color: 'var(--map-moderate)', radius: 7 },
+  low:      { color: 'var(--map-low)', radius: 7 },
 };
 
-const statusConfig: Record<string, string> = {
-  verified:    '#10B981',
-  in_progress: '#8B5CF6',
-  dispatched:  '#A855F7',
-};
-
-function makeIcon(severity: string, status: string) {
-  const col = status === 'verified'
-    ? statusConfig.verified
-    : status === 'in_progress' || status === 'dispatched'
-    ? statusConfig[status]
-    : (severityConfig[severity]?.color ?? '#3B82F6');
-
-  const pulse = severityConfig[severity]?.pulse && status === 'pending';
-
-  return L.divIcon({
-    className: 'custom-map-marker',
-    iconSize:   [36, 36],
-    iconAnchor: [18, 36],
-    popupAnchor:[0, -36],
-    html: `
-      <div class="relative w-9 h-9 flex items-center justify-center group" style="transform: translateY(-2px);">
-        ${pulse ? `<div class="absolute bottom-1 w-5 h-2 rounded-[100%] animate-pulse" style="background:${col}; box-shadow:0 0 12px 4px ${col}; opacity:0.6;"></div>` : ''}
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="${col}" stroke="#1e293b" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="relative z-10 transition-transform duration-300 group-hover:-translate-y-1 drop-shadow-[0_6px_6px_rgba(0,0,0,0.6)]">
-          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-          <circle cx="12" cy="10" r="3" fill="#ffffff" stroke="none"></circle>
-        </svg>
-      </div>
-    `,
-  });
+function getMarkerStyle(severity: string, status: string) {
+  const resolved = ['resolved', 'resolved_pending_confirmation', 'closed'].includes(status);
+  const config = severityConfig[severity] ?? severityConfig.low;
+  return {
+    color: resolved ? 'var(--map-resolved)' : config.color,
+    fillColor: resolved ? 'transparent' : config.color,
+    fillOpacity: resolved ? 0 : 0.15,
+    radius: resolved ? 5 : config.radius,
+    weight: 2,
+  };
 }
 
 function MapClickHandler({ onClick }: { onClick: (latlng: L.LatLng) => void }) {
@@ -72,49 +52,54 @@ interface Props {
   volunteerLocations?: { id: string; name: string; lat: number; lng: number }[];
 }
 
-const volunteerIcon = L.divIcon({
-  className: 'custom-volunteer-marker',
-  iconSize: [36, 36],
-  iconAnchor: [18, 36],
-  popupAnchor: [0, -36],
-  html: `
-    <div class="relative w-9 h-9 flex items-center justify-center group" style="transform: translateY(-2px);">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="#2563EB" stroke="#ffffff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="relative z-10 transition-transform duration-300 group-hover:-translate-y-1 drop-shadow-[0_4px_5px_rgba(0,0,0,0.5)]">
-        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-      </svg>
-      <div class="absolute top-1 z-20 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-sm">
-        <svg fill="#2563EB" viewBox="0 0 24 24" width="10" height="10"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
-      </div>
-    </div>
-  `,
-});
-
 export default function MapClient({ reports, onSelectReport, allowClick, onMapClick, center, zoom, volunteerLocations }: Props) {
   const [mounted, setMounted] = useState(false);
-  const mapRef = useRef<L.Map | null>(null);
-  const defaultCenter: [number, number] = center ?? [20.5937, 78.9629]; // India default
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light');
+  const defaultCenter: [number, number] = center ?? [13.6288, 79.4192];
 
   useEffect(() => {
     setMounted(true);
-    return () => setMounted(false);
+    const updateTheme = () => setResolvedTheme(document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    updateTheme();
+    const observer = new MutationObserver(updateTheme);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => {
+      observer.disconnect();
+      setMounted(false);
+    };
   }, []);
 
-
-
   return (
-    <div className="w-full h-full relative bg-[#0A0E17]">
+    <div className="map-shell w-full h-full relative">
       {mounted && (
         <MapContainer
           center={defaultCenter}
-          zoom={zoom ?? 5}
-          className="w-full h-full"
+          zoom={zoom ?? 13}
+          className="map-container w-full h-full"
           zoomControl={true}
-          ref={(map) => { if (map) mapRef.current = map; }}
+          maxBounds={[[13.55, 79.33], [13.72, 79.58]]}
+          maxBoundsViscosity={1}
+          minZoom={11}
         >
-          <ChangeView center={defaultCenter} zoom={zoom ?? 5} />
+          <ChangeView center={defaultCenter} zoom={zoom ?? 13} />
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            key={resolvedTheme}
+            attribution="© OpenStreetMap contributors © CARTO"
+            subdomains="abcd"
+            maxZoom={19}
+            url={resolvedTheme === 'dark'
+              ? 'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png'
+              : 'https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png'}
+          />
+          <TileLayer
+            key={`${resolvedTheme}-labels`}
+            attribution=""
+            subdomains="abcd"
+            maxZoom={19}
+            opacity={0.5}
+            url={resolvedTheme === 'dark'
+              ? 'https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png'
+              : 'https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png'}
           />
           
           {allowClick && onMapClick && <MapClickHandler onClick={onMapClick} />}
@@ -124,42 +109,46 @@ export default function MapClient({ reports, onSelectReport, allowClick, onMapCl
               ? [parseFloat(r.latitude), parseFloat(r.longitude)] as [number, number] 
               : parsePoint(r.location);
             if (!pos) return null;
+            const markerStyle = getMarkerStyle(r.severity, r.status);
+            const urgent = r.urgent_votes ?? r.up_votes ?? r.votes_urgent ?? 0;
+            const notUrgent = r.not_urgent_votes ?? r.down_votes ?? r.votes_not_urgent ?? 0;
             return (
-              <Marker
+              <CircleMarker
                 key={r.id}
-                position={pos}
-                icon={makeIcon(r.severity, r.status)}
+                center={pos}
+                pathOptions={markerStyle}
+                radius={markerStyle.radius}
                 eventHandlers={{ click: () => onSelectReport?.(r) }}
               >
                 <Popup>
-                  <div className="min-w-[180px]">
-                    <p className="font-semibold text-[14px] mb-1">{r.title}</p>
-                    <p className="text-[12px] text-gray-500 mb-2">{r.location_label}</p>
-                    <div className="flex gap-2 flex-wrap">
-                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium
-                        ${r.severity === 'critical' ? 'bg-red-100 text-red-700' : r.severity === 'moderate' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {r.severity}
-                      </span>
-                      <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-gray-100 text-gray-700">
-                        {r.status.replace('_', ' ')}
-                      </span>
-                    </div>
+                  <div className="map-popup min-w-[190px]">
+                    <p className="map-popup-title">{r.title}</p>
+                    <p className="map-popup-meta">{r.category || r.location_label || 'Civic report'}</p>
+                    <p className="map-popup-meta capitalize">{String(r.status).replaceAll('_', ' ')}</p>
+                    <p className="map-popup-votes">Urgent {urgent} · Not urgent {notUrgent}</p>
+                    <a className="map-popup-link" href={`/reports/${r.id}`}>View report</a>
                   </div>
                 </Popup>
-              </Marker>
+              </CircleMarker>
             );
           })}
 
           {volunteerLocations?.map((v) => (
-            <Marker key={v.id} position={[v.lat, v.lng]} icon={volunteerIcon}>
+            <CircleMarker key={v.id} center={[v.lat, v.lng]} radius={4} pathOptions={{ color: 'var(--map-volunteer)', fillColor: 'var(--map-volunteer)', fillOpacity: 0.7, weight: 1 }}>
               <Popup>
-                <div>
-                  <p className="font-semibold text-[14px]">{v.name}</p>
-                  <p className="text-[12px] text-gray-500">Volunteer</p>
+                <div className="map-popup">
+                  <p className="map-popup-title">{v.name}</p>
+                  <p className="map-popup-meta">Available volunteer</p>
                 </div>
               </Popup>
-            </Marker>
+            </CircleMarker>
           ))}
+          <div className="map-legend" aria-label="Report priority legend">
+            <span><i className="map-legend-dot critical" />Critical</span>
+            <span><i className="map-legend-dot moderate" />Moderate</span>
+            <span><i className="map-legend-dot low" />Low</span>
+            <span><i className="map-legend-dot resolved" />Resolved</span>
+          </div>
         </MapContainer>
       )}
     </div>

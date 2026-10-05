@@ -18,6 +18,7 @@ export default function ProfilePage() {
   const [volunteer, setVolunteer] = useState<any>(null);
   const [toast, setToast]       = useState('');
   const [toastType, setToastType] = useState<'success' | 'error'>('success');
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   const [form, setForm] = useState({
     fullName:    '',
@@ -119,6 +120,16 @@ export default function ProfilePage() {
         .eq('id', profile?.id);
       if (profileError) throw profileError;
 
+      if (avatarFile && profile?.id) {
+        const extension = avatarFile.type.split('/')[1] || 'jpg';
+        const path = `${profile.id}/avatar-${Date.now()}.${extension}`;
+        const { error: uploadError } = await supabase.storage.from('avatars').upload(path, avatarFile, { upsert: true, contentType: avatarFile.type });
+        if (uploadError) throw uploadError;
+        const { data: publicUrl } = supabase.storage.from('avatars').getPublicUrl(path);
+        await supabase.from('profiles').update({ avatar_url: publicUrl.publicUrl }).eq('id', profile.id);
+        setAvatarFile(null);
+      }
+
       if (form.skills.length > 0) {
         const lat = Number(form.lat);
         const lon = Number(form.lon);
@@ -177,6 +188,7 @@ export default function ProfilePage() {
               <div>
                 <p className="font-semibold text-white">{profile?.full_name}</p>
                 <p className="text-[12px] text-[#64748B] capitalize mt-0.5">{profile?.role}</p>
+                <label className="mt-1 block cursor-pointer text-[11px] text-blue-400 hover:text-blue-300">{avatarFile ? avatarFile.name : 'Choose profile photo'}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event => setAvatarFile(event.target.files?.[0] ?? null)} /></label>
               </div>
             </div>
 
