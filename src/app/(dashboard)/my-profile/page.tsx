@@ -36,20 +36,21 @@ export default function ProfilePage() {
       setProfile(prof);
       setForm(f => ({ ...f, fullName: prof?.full_name ?? '', phone: prof?.phone ?? '' }));
 
-      if (prof?.role === 'volunteer') {
-        const { data: vol } = await supabase.from('volunteers').select('*').eq('profile_id', user.id).single();
-        setVolunteer(vol);
-        if (vol) {
-          setForm(f => ({
-            ...f,
-            isAvailable: vol.is_available ?? true,
-            skills: vol.skills ?? [],
-            lat: '', lon: '',
-          }));
-          if (vol.last_location) {
-            const coords = parsePoint(vol.last_location);
-            if (coords) setForm(f => ({ ...f, lat: coords[0].toFixed(6), lon: coords[1].toFixed(6) }));
-          }
+      const { data: vol } = await supabase
+        .from('volunteer_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      setVolunteer(vol);
+      if (vol) {
+        setForm(f => ({
+          ...f,
+          isAvailable: vol.on_duty ?? true,
+          skills: vol.skills ?? [],
+        }));
+        if (vol.location) {
+          const coords = parsePoint(vol.location);
+          if (coords) setForm(f => ({ ...f, lat: coords[0].toFixed(6), lon: coords[1].toFixed(6) }));
         }
       }
       setLoading(false);
@@ -78,18 +79,12 @@ export default function ProfilePage() {
 
   const handleToggleAvailability = async (newValue: boolean) => {
     setForm(f => ({ ...f, isAvailable: newValue }));
-    if (!profile || profile.role !== 'volunteer') return;
-
-    // Use upsert-like logic to ensure volunteer row exists
-    const payload: any = { 
-      profile_id: profile.id,
-      is_available: newValue,
-      skills: form.skills
-    };
+    if (!volunteer || !profile) return;
 
     const { data: vol, error } = await supabase
-      .from('volunteers')
-      .upsert(payload, { onConflict: 'profile_id' })
+      .from('volunteer_profiles')
+      .update({ on_duty: newValue })
+      .eq('user_id', profile.id)
       .select()
       .single();
 
@@ -102,28 +97,47 @@ export default function ProfilePage() {
     }
   };
 
+  const handleStopVolunteering = async () => {
+    if (!profile) return;
+    const { error } = await supabase.from('volunteer_profiles').delete().eq('user_id', profile.id);
+    if (error) {
+      showToast(error.message, 'error');
+      return;
+    }
+    setVolunteer(null);
+    setForm(f => ({ ...f, skills: [], lat: '', lon: '', isAvailable: true }));
+    showToast('Volunteer settings removed.', 'success');
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      await supabase.from('profiles').update({ full_name: form.fullName, phone: form.phone }).eq('id', profile?.id);
-      
-      if (profile?.role === 'volunteer') {
-        const payload: any = { 
-          profile_id: profile.id,
-          is_available: form.isAvailable, 
-          skills: form.skills 
-        };
-        if (form.lat && form.lon) payload.last_location = `POINT(${form.lon} ${form.lat})`;
-        
-        const { data: vol, error } = await supabase
-          .from('volunteers')
-          .upsert(payload, { onConflict: 'profile_id' })
-          .select()
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ full_name: form.fullName, phone: form.phone })
+        .eq('id', profile?.id);
+      if (profileError) throw profileError;
+
+      if (form.skills.length > 0) {
+        const lat = Number(form.lat);
+        const lon = Number(form.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+          throw new Error('Get your GPS location before opting into volunteering.');
+        }
+        const { error: volunteerError } = await supabase.rpc('become_volunteer', {
+          p_skills: form.skills,
+          p_lat: lat,
+          p_lon: lon,
+          p_radius_km: 10,
+        });
+        if (volunteerError) throw volunteerError;
+        const { data: updatedVolunteer } = await supabase
+          .from('volunteer_profiles')
+          .select('*')
+          .eq('user_id', profile?.id)
           .single();
-          
-        if (vol) setVolunteer(vol);
-        if (error) throw error;
+        setVolunteer(updatedVolunteer);
       }
       showToast('Profile saved.', 'success');
     } catch (err: any) {
@@ -189,11 +203,13 @@ export default function ProfilePage() {
           </div>
 
           {/* Volunteer settings */}
-          {profile?.role === 'volunteer' && (
+          {profile && profile.role !== 'dispatcher' && (
             <>
               <div className="bg-[#111827] border border-[#1F2937] rounded-lg p-5">
-                <h2 className="text-[13px] font-semibold text-white mb-4">Skills</h2>
-                <p className="text-[12px] text-[#64748B] mb-3">Select all skills that apply. You&apos;ll be matched to incidents that need them.</p>
+                <h2 className="text-[13px] font-semibold text-white mb-4">Volunteer settings</h2>
+                <p className="text-[12px] text-[#64748B] mb-3">
+                  {volunteer ? 'Update your skills and duty status.' : 'Choose skills and location, then save to become a volunteer.'}
+                </p>
                 <div className="grid grid-cols-2 gap-2">
                   {SKILLS.map(({ id, label }) => {
                     const active = form.skills.includes(id);
@@ -217,9 +233,9 @@ export default function ProfilePage() {
 
               <div className="bg-[#111827] border border-[#1F2937] rounded-lg p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-[13px] font-semibold text-white">Availability</h2>
+                  <h2 className="text-[13px] font-semibold text-white">Duty status</h2>
                   <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                    <span className="text-[13px] text-[#94A3B8]">{form.isAvailable ? 'Available' : 'Unavailable'}</span>
+                    <span className="text-[13px] text-[#94A3B8]">{form.isAvailable ? 'On duty' : 'Off duty'}</span>
                     <div className="relative">
                       <input type="checkbox" checked={form.isAvailable} onChange={e => handleToggleAvailability(e.target.checked)} className="sr-only peer" />
                       <div className="w-9 h-5 bg-[#1F2937] rounded-full peer peer-checked:bg-blue-600 transition-colors" />
@@ -227,7 +243,7 @@ export default function ProfilePage() {
                     </div>
                   </label>
                 </div>
-                <p className="text-[12px] text-[#64748B]">When available, dispatchers can assign you to active incidents.</p>
+                <p className="text-[12px] text-[#64748B]">Dispatchers can assign you active incidents while you are on duty.</p>
               </div>
 
               <div className="bg-[#111827] border border-[#1F2937] rounded-lg p-5">
@@ -243,6 +259,11 @@ export default function ProfilePage() {
                 </div>
                 <p className="text-[11px] text-[#4B5563] mt-2">Location is used to calculate proximity to incidents.</p>
               </div>
+              {volunteer && (
+                <button type="button" onClick={handleStopVolunteering} className="text-[12px] text-red-400 hover:text-red-300">
+                  Stop volunteering
+                </button>
+              )}
             </>
           )}
 
