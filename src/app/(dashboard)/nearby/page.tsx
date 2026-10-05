@@ -17,11 +17,9 @@ const SEVERITY_COLOR: Record<string, string> = {
 export default function NearbyPage() {
   const [reports, setReports]       = useState<any[]>([]);
   const [volunteerId, setVolunteerId] = useState<string | null>(null);
-  const [profileId, setProfileId]   = useState<string | null>(null);
   const [mySkills, setMySkills]     = useState<string[]>([]);
   const [loading, setLoading]       = useState(true);
   const [selected, setSelected]     = useState<any>(null);
-  const [volunteering, setVolunteering] = useState(false);
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [tab, setTab]               = useState<'map' | 'list'>('list');
   const [gpsError, setGpsError]     = useState('');
@@ -31,30 +29,27 @@ export default function NearbyPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      setProfileId(user.id);
-
       const { data: vol } = await supabase
-        .from('volunteers')
-        .select('id, skills, last_location, is_available')
-        .eq('profile_id', user.id)
-        .single();
+        .from('volunteer_profiles')
+        .select('user_id, skills, location, on_duty')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
       if (vol) {
-        setVolunteerId(vol.id);
+        setVolunteerId(vol.user_id);
         setMySkills(vol.skills ?? []);
         // Parse stored location
-        if (vol.last_location) {
-          const coords = parsePoint(vol.last_location);
+        if (vol.location) {
+          const coords = parsePoint(vol.location);
           if (coords) setMyLocation({ lat: coords[0], lng: coords[1] });
         }
       }
 
-      const { data: all } = await supabase
-        .from('need_reports')
-        .select('*, profiles(full_name)')
-        .in('status', ['pending', 'dispatched'])
-        .order('created_at', { ascending: false });
-      setReports(all ?? []);
+      const { data: all } = await supabase.rpc('nearby_open_reports');
+      setReports((all ?? []).map((report: any) => ({
+        ...report,
+        location: { type: 'Point', coordinates: [report.lon, report.lat] },
+      })));
       setLoading(false);
 
       // Try GPS
@@ -63,12 +58,6 @@ export default function NearbyPage() {
           async (pos) => {
             const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
             setMyLocation(loc);
-            // Update volunteer location in DB
-            if (vol) {
-              await supabase.from('volunteers')
-                .update({ last_location: `POINT(${loc.lng} ${loc.lat})` })
-                .eq('id', vol.id);
-            }
           },
           () => setGpsError('Enable location for distance calculation.')
         );
@@ -89,35 +78,6 @@ export default function NearbyPage() {
     const a = Math.sin(dLat/2)**2 + Math.cos(myLocation.lat*Math.PI/180)*Math.cos(rLat*Math.PI/180)*Math.sin(dLng/2)**2;
     const km = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return km < 1 ? `${Math.round(km * 1000)}m` : `${km.toFixed(1)}km`;
-  };
-
-  const handleVolunteer = async (reportId: string) => {
-    if (!volunteerId || !profileId) return;
-    setVolunteering(true);
-    // Create a self-assigned task
-    await supabase.from('tasks').insert({
-      report_id: reportId,
-      volunteer_id: volunteerId,
-      assigned_by: profileId,
-      status: 'dispatched',
-    });
-    await supabase.from('need_reports')
-      .update({ status: 'dispatched' })
-      .eq('id', reportId);
-    await supabase.from('report_updates').insert({
-      report_id: reportId,
-      author_id: profileId,
-      message: 'Volunteer self-assigned to this report.',
-    });
-    setVolunteering(false);
-    setSelected(null);
-    // Refresh
-    const { data } = await supabase
-      .from('need_reports')
-      .select('*, profiles(full_name)')
-      .in('status', ['pending', 'dispatched'])
-      .order('created_at', { ascending: false });
-    setReports(data ?? []);
   };
 
   // Sort by skill match + distance
@@ -257,20 +217,9 @@ export default function NearbyPage() {
                 )}
               </div>
 
-              {selected.status === 'pending' ? (
-                <button
-                  onClick={() => handleVolunteer(selected.id)}
-                  disabled={volunteering}
-                  className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-lg text-[13px] transition-colors flex items-center justify-center gap-2"
-                >
-                  {volunteering ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                  {volunteering ? 'Registering...' : 'Volunteer for this'}
-                </button>
-              ) : (
-                <div className="text-center text-[13px] text-[#64748B] py-2">
-                  This report is already being handled.
-                </div>
-              )}
+              <div className="text-center text-[13px] text-[#64748B] py-2">
+                Dispatchers assign volunteers to reports. Ask a dispatcher to assign you to this incident.
+              </div>
             </div>
           </div>
         )}
