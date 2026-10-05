@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet';
+import { parsePoint } from '@/lib/geo';
 
 function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
   const map = useMap();
@@ -71,37 +72,6 @@ interface Props {
   volunteerLocations?: { id: string; name: string; lat: number; lng: number }[];
 }
 
-export function parsePoint(pt: any): [number, number] | null {
-  if (!pt) return null;
-  // Handle GeoJSON format (PostgREST JSON serialization)
-  if (typeof pt === 'object' && pt.type === 'Point' && Array.isArray(pt.coordinates)) {
-    // GeoJSON is [longitude, latitude], Leaflet needs [latitude, longitude]
-    return [pt.coordinates[1], pt.coordinates[0]];
-  }
-  // Handle WKT POINT(lng lat) string
-  try {
-    if (typeof pt === 'string' && pt.startsWith('POINT')) {
-      const m = pt.match(/\(([^ ]+)\s+([^)]+)\)/);
-      if (m) return [parseFloat(m[2]), parseFloat(m[1])];
-    }
-  } catch {}
-  // Handle EWKB Hex string (PostgREST default string serialization for PostGIS)
-  if (typeof pt === 'string' && pt.startsWith('0101000020E6100000')) {
-    try {
-      const hexToBuf = (h: string) => {
-        const matches = h.match(/../g);
-        if (!matches) return new ArrayBuffer(0);
-        return new Uint8Array(matches.map(b => parseInt(b, 16))).buffer;
-      };
-      const dv = new DataView(hexToBuf(pt));
-      const lng = dv.getFloat64(9, true);  // X coord
-      const lat = dv.getFloat64(17, true); // Y coord
-      return [lat, lng];
-    } catch {}
-  }
-  return null;
-}
-
 const volunteerIcon = L.divIcon({
   className: 'custom-volunteer-marker',
   iconSize: [36, 36],
@@ -143,8 +113,8 @@ export default function MapClient({ reports, onSelectReport, allowClick, onMapCl
         >
           <ChangeView center={defaultCenter} zoom={zoom ?? 5} />
           <TileLayer
-            attribution='&copy; <a href="https://carto.com">CARTO</a>'
-            url="https://Basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           
           {allowClick && onMapClick && <MapClickHandler onClick={onMapClick} />}

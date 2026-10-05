@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { parsePoint } from '@/components/MapClient';
+import { parsePoint } from '@/lib/geo';
 import { supabase } from '@/lib/supabase';
 import { Loader2, MapPin, ChevronRight, AlertTriangle, CheckCircle2, Clock, Navigation, Star } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';

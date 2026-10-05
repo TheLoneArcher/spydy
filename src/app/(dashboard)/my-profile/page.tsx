@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { parsePoint } from '@/components/MapClient';
+import { parsePoint } from '@/lib/geo';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Save, MapPin, CheckCircle2, AlertTriangle } from 'lucide-react';
 

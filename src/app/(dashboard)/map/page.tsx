@@ -14,7 +14,7 @@ const MapClient = dynamic(() => import('@/components/MapClient'), {
   ),
 });
 
-import { parsePoint } from '@/components/MapClient';
+import { parsePoint } from '@/lib/geo';
 
 function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const R = 6371; // km
