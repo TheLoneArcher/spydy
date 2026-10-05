@@ -51,7 +51,7 @@ export async function proxy(request: NextRequest) {
 
   // Admin-only routes
   const dispatcherRoutes = ['/map', '/tasks', '/volunteers', '/analytics', '/reports', '/resources']
-  if (dispatcherRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`)) && role !== 'dispatcher') {
+  if (dispatcherRoutes.some(r => pathname === r || pathname.startsWith(`${r}/`)) && role !== 'dispatcher' && role !== 'admin') {
     return NextResponse.redirect(new URL('/submit-report', request.url))
   }
 
