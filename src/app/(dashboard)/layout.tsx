@@ -35,19 +35,15 @@ export default async function DashboardLayout({
   if (user) {
     const { data: prof } = await supabase
       .from('profiles')
-      .select('*, volunteers(is_available)')
+      .select('id, full_name, role, phone, avatar_url, is_active, created_at')
       .eq('id', user.id)
       .single()
     
     if (prof) {
       role = prof.role
-      const isAvailable = Array.isArray(prof.volunteers) && prof.volunteers.length > 0
-        ? prof.volunteers[0].is_available
-        : null; // null = unknown/no volunteer row, not "unavailable"
-      
       profile = {
         ...prof,
-        is_available: isAvailable
+        is_available: null
       }
     }
   }

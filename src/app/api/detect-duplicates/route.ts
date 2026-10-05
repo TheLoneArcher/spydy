@@ -2,20 +2,6 @@ import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-// Haversine formula to calculate distance in km
-function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-  const R = 6371; // Radius of the earth in km
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLon = (lon2 - lon1) * Math.PI / 180;
-  const a = 
-    Math.sin(dLat/2) * Math.sin(dLat/2) +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-    Math.sin(dLon/2) * Math.sin(dLon/2); 
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
-  const d = R * c; // Distance in km
-  return d;
-}
-
 export async function POST(req: Request) {
   try {
     const { title, description, lat, lon, category } = await req.json();
@@ -37,21 +23,12 @@ export async function POST(req: Request) {
       }
     );
 
-    // Fetch potential duplicates (same category, approx bounding box)
-    // 1 degree lat is ~111km. 500m is ~0.0045 degrees.
-    const latThreshold = 0.005;
-    const lonThreshold = 0.005;
-
-    const { data: nearbyReports, error } = await supabase
-      .from('need_reports')
-      .select('id, title, description, latitude, longitude, category, status')
-      .eq('category', category)
-      .gte('latitude', lat - latThreshold)
-      .lte('latitude', lat + latThreshold)
-      .gte('longitude', lon - lonThreshold)
-      .lte('longitude', lon + lonThreshold)
-      .neq('status', 'resolved')
-      .limit(10);
+    const { data: nearbyReports, error } = await supabase.rpc('open_reports_within', {
+      p_lat: lat,
+      p_lon: lon,
+      p_radius_m: 500,
+      p_category: category || null,
+    });
 
     if (error) {
       console.error('Supabase query error:', error);
@@ -62,11 +39,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ isDuplicate: false, duplicateOf: null, similarity: 0, existingReports: [] });
     }
 
-    // Filter by exact distance (< 500m)
-    const validReports = nearbyReports.filter(report => {
-      const distance = calculateDistance(lat, lon, report.latitude, report.longitude);
-      return distance <= 0.5; // 500 meters
-    });
+    const validReports = nearbyReports ?? [];
 
     if (validReports.length === 0) {
       return NextResponse.json({ isDuplicate: false, duplicateOf: null, similarity: 0, existingReports: [] });

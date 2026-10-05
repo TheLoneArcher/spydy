@@ -37,7 +37,7 @@ export function Sidebar({ role, profile }: SidebarProps) {
     { label: 'Profile',       href: '/my-profile',     icon: UserCircle },
   ];
 
-  const links = role === 'admin' ? adminNav : volunteerNav;
+  const links = role === 'admin' || role === 'dispatcher' ? adminNav : volunteerNav;
   const initials = profile?.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0,2).toUpperCase() || '??';
 
   const NavContent = () => (
@@ -53,7 +53,7 @@ export function Sidebar({ role, profile }: SidebarProps) {
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto space-y-0.5">
         <p className="text-[10px] uppercase tracking-widest text-[#4B5563] font-semibold px-2 mb-3">
-          {role === 'admin' ? 'Operations' : 'Field'}
+          {role === 'admin' || role === 'dispatcher' ? 'Operations' : 'Field'}
         </p>
         {links.map(({ label, href, icon: Icon }) => {
           const active = pathname === href || (href !== '/' && pathname.startsWith(href));

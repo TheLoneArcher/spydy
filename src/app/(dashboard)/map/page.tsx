@@ -35,9 +35,10 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   pending:     'text-slate-400 bg-slate-500/10 border-slate-500/20',
-  dispatched:  'text-purple-400 bg-purple-500/10 border-purple-500/20',
+  assigned:    'text-purple-400 bg-purple-500/10 border-purple-500/20',
   in_progress: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
-  verified:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  resolved:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
+  closed:      'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
 };
 
 export default function MapPage() {
@@ -59,22 +60,30 @@ export default function MapPage() {
       setCurrentUser(prof);
 
       const [repsData, volsData, updatesData] = await Promise.all([
-        supabase.from('need_reports').select('*, profiles(full_name)').order('created_at', { ascending: false }),
-        supabase.from('volunteers').select('id, profile_id, skills, last_location, is_available, profiles(full_name)').eq('is_available', true),
-        supabase.from('report_updates').select('*, profiles:author_id(full_name)').order('created_at', { ascending: false }).limit(20)
+        supabase.from('reports').select('*, profiles:reporter_id(full_name)').order('created_at', { ascending: false }),
+        supabase.from('volunteer_profiles').select('user_id, skills, location, on_duty, profiles:user_id(full_name)').eq('on_duty', true),
+        supabase.from('report_events').select('*, profiles:actor_id(full_name)').order('created_at', { ascending: false }).limit(20)
       ]);
 
       if (repsData.data) setReports(repsData.data);
-      if (volsData.data) setVolunteers(volsData.data);
+      if (volsData.data) {
+        setVolunteers(volsData.data.map((volunteer: any) => ({
+          ...volunteer,
+          id: volunteer.user_id,
+          profile_id: volunteer.user_id,
+          last_location: volunteer.location,
+          is_available: volunteer.on_duty,
+        })));
+      }
       if (updatesData.data) setUpdates(updatesData.data);
       setLoading(false);
     };
     init();
 
     const chan = supabase.channel('map_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'need_reports' }, () => init())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'report_updates' }, () => init())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, () => init())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => init())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'report_events' }, () => init())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteer_profiles' }, () => init())
       .subscribe();
     return () => { supabase.removeChannel(chan); };
   }, []);
@@ -84,42 +93,13 @@ export default function MapPage() {
     setDispatching(true);
     try {
       const vol = volunteers.find(v => v.id === volunteerId);
-      
-      // 1. Create the task
-      const { data: task, error: tErr } = await supabase.from('tasks').insert({
-        report_id: selected.id,
-        volunteer_id: volunteerId,
-        assigned_by: currentUser.id,
-        status: 'dispatched',
-        notes: 'Assigned via Map Dispatch'
-      }).select().single();
-
-      if (tErr) throw tErr;
-
-      // 2. Mark incident as dispatched
-      await supabase.from('need_reports').update({ status: 'dispatched' }).eq('id', selected.id);
-
-      // 3. Log the update
-      await supabase.from('report_updates').insert({
-        report_id: selected.id,
-        author_id: currentUser.id,
-        message: `Task assigned to ${vol?.profiles?.full_name || 'Volunteer'}`
+      const { error } = await supabase.rpc('dispatch_task', {
+        p_report: selected.id,
+        p_volunteer: volunteerId,
+        p_notes: `Assigned via map dispatch to ${vol?.profiles?.full_name || 'volunteer'}`,
       });
-
-      // 4. Mark the volunteer as busy
-      await supabase.from('volunteers').update({ is_available: false }).eq('id', volunteerId);
-
-      // 5. Notify volunteer (if we have their profile_id)
-      if (vol?.profile_id) {
-        await supabase.from('notifications').insert({
-          recipient_id: vol.profile_id,
-          title: 'New Dispatch Assignment',
-          message: `You have been dispatched to: ${selected.title}`,
-          type: 'assignment',
-          related_report_id: selected.id,
-          related_task_id: task?.id
-        });
-      }
+      if (error) throw error;
+      setToast('Task assigned successfully');
     } catch (err: any) {
       console.error('Dispatch error:', err.message);
       setToast(`Dispatch failed: ${err.message}`);
@@ -132,10 +112,10 @@ export default function MapPage() {
 
   const filtered = reports.filter(r => filter === 'all' || r.severity === filter || r.status === filter);
   const stats = {
-    active:   reports.filter(r => r.status !== 'verified').length,
-    critical: reports.filter(r => r.severity === 'critical' && r.status !== 'verified').length,
+    active:   reports.filter(r => !['closed', 'rejected', 'duplicate'].includes(r.status)).length,
+    critical: reports.filter(r => r.severity === 'critical' && !['closed', 'rejected', 'duplicate'].includes(r.status)).length,
     pending:  reports.filter(r => r.status === 'pending').length,
-    resolved: reports.filter(r => r.status === 'verified').length,
+    resolved: reports.filter(r => ['resolved', 'closed'].includes(r.status)).length,
   };
 
   const sortedVolunteers = useMemo(() => {
@@ -236,11 +216,11 @@ export default function MapPage() {
                 )}
 
                 {/* Dispatch panel */}
-                {currentUser?.role === 'admin' && (selected.status === 'pending' || selected.status === 'dispatched') && (
+                {(currentUser?.role === 'admin' || currentUser?.role === 'dispatcher') && (selected.status === 'pending' || selected.status === 'assigned') && (
                   <div className="pt-4 border-t border-[#1F2937]">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] uppercase tracking-widest font-semibold text-[#64748B]">
-                        {selected.status === 'dispatched' ? 'Re-assign Volunteer' : 'Available Volunteers'}
+                        {selected.status === 'assigned' ? 'Re-assign Volunteer' : 'Available Volunteers'}
                       </p>
                       <span className="text-[10px] text-blue-400 font-medium bg-blue-500/10 px-2 py-0.5 rounded-full">Nearest first</span>
                     </div>
@@ -299,7 +279,7 @@ export default function MapPage() {
                   { label: 'Critical', value: 'critical' },
                   { label: 'Moderate', value: 'moderate' },
                   { label: 'Pending', value: 'pending' },
-                  { label: 'Resolved', value: 'verified' },
+                  { label: 'Resolved', value: 'closed' },
                 ].map(f => (
                   <button
                     key={f.value}

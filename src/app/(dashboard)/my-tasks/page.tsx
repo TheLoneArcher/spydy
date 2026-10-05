@@ -28,23 +28,25 @@ export default function MyTasksPage() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [tab, setTab]         = useState<'active' | 'done'>('active');
-  const [volId, setVolId]     = useState<string | null>(null);
 
   const fetchTasks = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      const { data: vol, error: vErr } = await supabase.from('volunteers').select('id').eq('profile_id', user.id).single();
-      if (vErr || !vol) { 
-        if (vErr) console.error('Volunteer fetch error:', vErr.message);
+      const { data: volunteer, error: volunteerError } = await supabase
+        .from('volunteer_profiles')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single();
+      if (volunteerError || !volunteer) {
+        if (volunteerError) console.error('Volunteer fetch error:', volunteerError.message);
         setLoading(false); 
         return; 
       }
-      setVolId(vol.id);
       const { data, error } = await supabase
         .from('tasks')
-        .select('*, need_reports(id, title, description, severity, location_label, required_skill)')
-        .eq('volunteer_id', vol.id)
+        .select('*, reports(id, title, description, severity, location_label, required_skill)')
+        .eq('volunteer_id', user.id)
         .order('assigned_at', { ascending: false });
 
       if (error) console.error('Tasks fetch error:', error.message);
@@ -61,44 +63,31 @@ export default function MyTasksPage() {
   }, []);
 
   useEffect(() => {
-    if (!volId) return;
-    const chan = supabase.channel('my_tasks_' + volId)
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    void supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      channel = supabase.channel('my_tasks_' + user.id)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'tasks',
-        filter: `volunteer_id=eq.${volId}`
+        filter: `volunteer_id=eq.${user.id}`
       }, fetchTasks)
       .subscribe();
-    return () => { supabase.removeChannel(chan); };
-  }, [volId]);
+    });
+    return () => {
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, []);
 
-  const updateStatus = async (taskId: string, reportId: string, newStatus: string) => {
+  const updateStatus = async (taskId: string, newStatus: string) => {
     setUpdatingId(taskId);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // 1. Update the task
-      await supabase.from('tasks').update({ status: newStatus }).eq('id', taskId);
-
-      // 2. Log it
-      await supabase.from('report_updates').insert({
-        report_id: reportId,
-        author_id: user.id,
-        message: `Task status changed to: ${newStatus.replace('_', ' ')}`
+      const { error } = await supabase.rpc('update_task_status', {
+        p_task: taskId,
+        p_status: newStatus,
       });
-
-      // 3. Update the report status
-      await supabase.from('need_reports').update({ status: newStatus }).eq('id', reportId);
-
-      // 4. CRITICAL: If resolved, set volunteer back to available
-      if (newStatus === 'verified') {
-        const { data: vol } = await supabase.from('volunteers').select('id').eq('profile_id', user.id).single();
-        if (vol) {
-          await supabase.from('volunteers').update({ is_available: true }).eq('id', vol.id);
-        }
-      }
+      if (error) throw error;
 
       fetchTasks();
     } catch (err: any) {
@@ -110,16 +99,16 @@ export default function MyTasksPage() {
 
   if (loading) return <div className="flex h-full items-center justify-center bg-[#0A0E17]"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>;
 
-  const active = tasks.filter(t => t.status !== 'verified');
-  const done   = tasks.filter(t => t.status === 'verified');
+  const active = tasks.filter(t => !['completed', 'declined', 'cancelled'].includes(t.status));
+  const done   = tasks.filter(t => ['completed', 'declined', 'cancelled'].includes(t.status));
   const displayed = tab === 'active' ? active : done;
 
   const nextStatus: Record<string, string> = {
-    dispatched:  'in_progress',
-    in_progress: 'verified',
+    assigned:    'in_progress',
+    in_progress: 'completed',
   };
   const nextLabel: Record<string, string> = {
-    dispatched:  'Start task',
+    assigned:    'Start task',
     in_progress: 'Mark complete',
   };
 
@@ -163,7 +152,7 @@ export default function MyTasksPage() {
         ) : (
           <div className="space-y-3">
             {displayed.map(task => {
-              const r = task.need_reports;
+              const r = task.reports;
               const next = nextStatus[task.status];
               return (
                 <div key={task.id} className="bg-[#111827] border border-[#1F2937] rounded-lg p-4">
@@ -195,7 +184,7 @@ export default function MyTasksPage() {
 
                     {next && (
                       <button
-                        onClick={() => updateStatus(task.id, r?.id, next)}
+                        onClick={() => updateStatus(task.id, next)}
                         disabled={updatingId === task.id}
                         className={`flex-shrink-0 text-[12px] font-medium px-3 py-2 rounded-md transition-colors flex items-center gap-1.5
                           ${next === 'verified'

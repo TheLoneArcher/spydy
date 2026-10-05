@@ -50,13 +50,30 @@ export default function SubmitReportPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!file.type.startsWith('image/')) {
+      setError('Please choose an image file.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Images must be 5 MB or smaller.');
+      return;
+    }
+
     setImageFile(file);
     setImagePreview(URL.createObjectURL(file));
     
     // Upload immediately
     setUploadingImage(true);
     try {
-      const { data, error } = await supabase.storage.from('report-images').upload(`${Date.now()}-${file.name}`, file);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('You must be signed in to upload a report image.');
+
+      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
+      const { data, error } = await supabase.storage.from('report-images').upload(path, file, {
+        contentType: file.type,
+        upsert: false,
+      });
       if (error) throw error;
       
       const url = supabase.storage.from('report-images').getPublicUrl(data.path).data.publicUrl;
@@ -144,20 +161,15 @@ export default function SubmitReportPage() {
       }
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { error: dbErr } = await supabase.from('need_reports').insert({
-      title:          form.title,
-      description:    form.description,
-      category:       form.category,
-      severity:       form.severity,
-      location:       `POINT(${lon} ${lat})`,
-      latitude:       lat,
-      longitude:      lon,
-      location_label: form.location_label,
-      image_url:      imageUrl,
-      submitted_by:   user?.id,
-      status:         'pending',
+    const { error: dbErr } = await supabase.rpc('submit_report', {
+      p_title: form.title,
+      p_description: form.description,
+      p_category: form.category,
+      p_severity: form.severity,
+      p_lat: lat,
+      p_lon: lon,
+      p_label: form.location_label,
+      p_image_path: imageUrl,
     });
 
     setLoading(false);
