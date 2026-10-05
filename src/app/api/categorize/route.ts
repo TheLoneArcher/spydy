@@ -60,7 +60,9 @@ Respond ONLY with a valid JSON object matching this schema:
       body: JSON.stringify({
         model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
         messages: messages,
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        max_tokens: 600,
+        temperature: 0.1,
       }),
       signal: AbortSignal.timeout(15000),
     });
