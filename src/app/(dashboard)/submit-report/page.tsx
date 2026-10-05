@@ -1,7 +1,7 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, MapPin, CheckCircle2, AlertTriangle, Send, Upload, Sparkles } from 'lucide-react';
+import { Loader2, MapPin, CheckCircle2, AlertTriangle, Send, Camera, X, Sparkles } from 'lucide-react';
 
 const CATEGORIES = ['pothole', 'streetlight', 'garbage', 'water_leakage', 'road_damage', 'drainage', 'other'];
 
@@ -10,11 +10,14 @@ export default function SubmitReportPage() {
   const [success,  setSuccess]  = useState(false);
   const [error,    setError]    = useState('');
   const [gpsLabel, setGpsLabel] = useState('');
-  
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [capturedAt, setCapturedAt] = useState<string | null>(null);
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   
   const [aiLoading, setAiLoading] = useState(false);
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
@@ -31,7 +34,15 @@ export default function SubmitReportPage() {
     lon:            '',
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (cameraOpen && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraOpen]);
+
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+  }, []);
 
   const f = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
     setForm(prev => ({ ...prev, [k]: e.target.value }));
@@ -40,53 +51,55 @@ export default function SubmitReportPage() {
     navigator.geolocation?.getCurrentPosition(
       pos => {
         setForm(prev => ({ ...prev, lat: pos.coords.latitude.toFixed(6), lon: pos.coords.longitude.toFixed(6) }));
-        setGpsLabel('GPS acquired');
+        setGpsAccuracy(pos.coords.accuracy);
+        setGpsLabel(`GPS acquired (${Math.round(pos.coords.accuracy)} m accuracy)`);
       },
       () => setError('Could not acquire GPS. Enter coordinates manually.'),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   };
 
-  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      setError('Please choose an image file.');
+  const openCamera = async () => {
+    setError('');
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setError('Camera capture requires a secure HTTPS connection.');
       return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Images must be 5 MB or smaller.');
-      return;
-    }
-
-    setImageFile(file);
-    setImagePreview(URL.createObjectURL(file));
-    
-    // Upload immediately
-    setUploadingImage(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('You must be signed in to upload a report image.');
-
-      const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const path = `${user.id}/${crypto.randomUUID()}.${extension}`;
-      const { data, error } = await supabase.storage.from('report-images').upload(path, file, {
-        contentType: file.type,
-        upsert: false,
+      streamRef.current = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false,
       });
-      if (error) throw error;
-      
-      const url = supabase.storage.from('report-images').getPublicUrl(data.path).data.publicUrl;
-      setImageUrl(url);
-    } catch (err: any) {
-      setError('Image upload failed: ' + err.message);
-    } finally {
-      setUploadingImage(false);
+      setCameraOpen(true);
+      getGps();
+    } catch {
+      setError('Camera access was denied or is unavailable on this device.');
     }
   };
 
+  const closeCamera = () => {
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    setCameraOpen(false);
+  };
+
+  const capturePhoto = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.videoWidth === 0) {
+      setError('Camera is still starting. Try again in a moment.');
+      return;
+    }
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+    setImagePreview(canvas.toDataURL('image/jpeg', 0.86));
+    setCapturedAt(new Date().toISOString());
+    closeCamera();
+  };
+
   const categorizeWithAI = async () => {
-    if (!form.title && !form.description && !imageUrl) {
+    if (!form.title && !form.description && !imagePreview) {
       setError('Please provide a title, description, or image for AI to analyze.');
       return;
     }
@@ -101,13 +114,12 @@ export default function SubmitReportPage() {
         body: JSON.stringify({
           title: form.title,
           description: form.description,
-          imageUrl: imageUrl
+          imageUrl: imagePreview
         })
       });
       
-      if (!res.ok) throw new Error('AI categorization failed');
-      
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'AI categorization failed');
       
       setForm(prev => ({
         ...prev,
@@ -169,7 +181,7 @@ export default function SubmitReportPage() {
       p_lat: lat,
       p_lon: lon,
       p_label: form.location_label,
-      p_image_path: imageUrl,
+      p_image_path: null,
     });
 
     setLoading(false);
@@ -177,9 +189,10 @@ export default function SubmitReportPage() {
 
     setSuccess(true);
     setForm({ title: '', description: '', category: 'other', severity: 'moderate', location_label: '', lat: '', lon: '' });
-    setImageFile(null);
     setImagePreview(null);
-    setImageUrl(null);
+    setGpsLabel('');
+    setGpsAccuracy(null);
+    setCapturedAt(null);
     setAiConfidence(null);
     setDuplicateWarning(null);
     setTimeout(() => setSuccess(false), 5000);
@@ -196,7 +209,7 @@ export default function SubmitReportPage() {
           <button 
             type="button" 
             onClick={categorizeWithAI} 
-            disabled={aiLoading || uploadingImage}
+            disabled={aiLoading || cameraOpen}
             className="flex items-center gap-1.5 text-[12px] text-purple-400 hover:text-purple-300 border border-purple-500/20 bg-purple-600/10 px-3 py-1.5 rounded-md transition-colors"
           >
             {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
@@ -250,40 +263,52 @@ export default function SubmitReportPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           
           <div className="bg-[#111827] border border-[#1F2937] rounded-lg p-5 space-y-4">
-            <label className="block text-[12px] font-medium text-[#94A3B8]">Photo Evidence</label>
-            <div 
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-[#1F2937] hover:border-blue-500/50 rounded-lg p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-colors relative overflow-hidden group"
-            >
+            <div className="flex items-center justify-between">
+              <label className="block text-[12px] font-medium text-[#94A3B8]">Camera evidence</label>
+              {imagePreview && (
+                <button type="button" onClick={() => setImagePreview(null)} className="text-[11px] text-red-400 hover:text-red-300">
+                  Retake photo
+                </button>
+              )}
+            </div>
+            <div className="border-2 border-dashed border-[#1F2937] rounded-lg min-h-[180px] flex flex-col items-center justify-center text-center relative overflow-hidden">
               {imagePreview ? (
                 <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={imagePreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-40 transition-opacity" />
                   <div className="relative z-10 flex flex-col items-center">
-                    {uploadingImage ? (
-                      <Loader2 className="w-6 h-6 text-blue-400 animate-spin mb-2" />
-                    ) : (
-                      <CheckCircle2 className="w-6 h-6 text-emerald-400 mb-2" />
-                    )}
-                    <span className="text-sm font-medium text-white shadow-sm">
-                      {uploadingImage ? 'Uploading...' : 'Image uploaded. Click to change.'}
-                    </span>
+                    <CheckCircle2 className="w-6 h-6 text-emerald-400 mb-2" />
+                    <span className="text-sm font-medium text-white shadow-sm">Camera photo captured</span>
                   </div>
                 </>
               ) : (
                 <>
-                  <Upload className="w-6 h-6 text-[#64748B] mb-2" />
-                  <span className="text-sm text-[#94A3B8]">Click to upload a photo</span>
+                  <Camera className="w-6 h-6 text-[#64748B] mb-2" />
+                  <button type="button" onClick={openCamera} className="text-sm text-blue-400 hover:text-blue-300">Open camera</button>
+                  <span className="text-[11px] text-[#64748B] mt-1">Gallery uploads are disabled</span>
                 </>
               )}
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                accept="image/*"
-                onChange={handleImageChange}
-              />
             </div>
+            <canvas ref={canvasRef} className="hidden" />
+            {cameraOpen && (
+              <div className="fixed inset-0 z-[1000] bg-black/90 flex items-center justify-center p-4">
+                <div className="w-full max-w-lg space-y-3">
+                  <div className="flex justify-between items-center text-white">
+                    <span className="text-sm font-medium">Capture issue photo</span>
+                    <button type="button" onClick={closeCamera} aria-label="Close camera"><X className="w-5 h-5" /></button>
+                  </div>
+                  <video ref={videoRef} autoPlay muted playsInline className="w-full rounded-lg bg-black aspect-video object-cover" />
+                  <button type="button" onClick={capturePhoto} className="w-full bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-lg font-medium">Capture photo</button>
+                </div>
+              </div>
+            )}
+            {(form.lat && form.lon) && (
+              <div className="rounded-md border border-emerald-500/20 bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-300">
+                <div className="font-medium">Geotag recorded</div>
+                <div className="mt-1 font-mono text-emerald-300/80">
+                  {form.lat}, {form.lon}{gpsAccuracy !== null ? ` • ±${Math.round(gpsAccuracy)} m` : ''}{capturedAt ? ` • ${new Date(capturedAt).toLocaleTimeString()}` : ''}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="bg-[#111827] border border-[#1F2937] rounded-lg p-5 space-y-4">
@@ -364,7 +389,7 @@ export default function SubmitReportPage() {
           </div>
 
           <button
-            type="submit" disabled={loading || uploadingImage}
+            type="submit" disabled={loading || cameraOpen}
             className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2.5 rounded-md text-[13px] transition-colors flex items-center justify-center gap-2"
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}

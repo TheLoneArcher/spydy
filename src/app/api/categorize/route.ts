@@ -4,8 +4,12 @@ export async function POST(req: Request) {
   try {
     const { title, description, imageUrl } = await req.json();
 
-    if (!title && !description) {
-      return NextResponse.json({ error: 'Title or description is required' }, { status: 400 });
+    if (!title && !description && !imageUrl) {
+      return NextResponse.json({ error: 'Title, description, or a camera image is required' }, { status: 400 });
+    }
+
+    if (!process.env.OPENROUTER_API_KEY) {
+      return NextResponse.json({ error: 'AI categorization is not configured on the server' }, { status: 503 });
     }
 
     const messages: any[] = [
@@ -29,6 +33,8 @@ Respond ONLY with a valid JSON object matching this schema:
         type: 'text',
         text: `Title: ${title || 'N/A'}\nDescription: ${description || 'N/A'}`
       });
+    } else {
+      content.push({ type: 'text', text: 'Analyze the captured civic issue image.' });
     }
 
     if (imageUrl) {
@@ -52,16 +58,22 @@ Respond ONLY with a valid JSON object matching this schema:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
+        model: process.env.OPENROUTER_MODEL || 'google/gemini-2.0-flash-001',
         messages: messages,
         response_format: { type: 'json_object' }
-      })
+      }),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error('OpenRouter API error:', errorText);
-      return NextResponse.json({ error: 'Failed to categorize issue' }, { status: 500 });
+      let providerMessage = `OpenRouter returned ${response.status}`;
+      try {
+        const parsed = JSON.parse(errorText);
+        providerMessage = parsed.error?.message || providerMessage;
+      } catch {}
+      return NextResponse.json({ error: `AI categorization failed: ${providerMessage}` }, { status: 502 });
     }
 
     const data = await response.json();
@@ -69,13 +81,23 @@ Respond ONLY with a valid JSON object matching this schema:
     
     try {
       const result = JSON.parse(resultText);
-      return NextResponse.json(result);
+      const categories = ['pothole', 'streetlight', 'garbage', 'water_leakage', 'road_damage', 'drainage', 'other'];
+      const severities = ['critical', 'moderate', 'low'];
+      return NextResponse.json({
+        category: categories.includes(result.category) ? result.category : 'other',
+        severity: severities.includes(result.severity) ? result.severity : 'moderate',
+        confidence: typeof result.confidence === 'number' ? Math.max(0, Math.min(1, result.confidence)) : 0,
+        suggested_title: typeof result.suggested_title === 'string' ? result.suggested_title.slice(0, 140) : '',
+      });
     } catch (parseError) {
       console.error('Failed to parse OpenRouter response:', resultText);
       return NextResponse.json({ error: 'Invalid response from AI model' }, { status: 500 });
     }
   } catch (error) {
     console.error('Categorize API error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    const message = error instanceof Error && error.name === 'TimeoutError'
+      ? 'AI categorization timed out. Try again or choose a category manually.'
+      : 'AI categorization could not be completed. Choose a category manually.';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
