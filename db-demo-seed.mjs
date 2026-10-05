@@ -55,6 +55,18 @@ async function main() {
     if (error) throw error;
   }
 
+  await db.query(`
+    delete from public.reports
+    where title in (
+      'Large pothole on MG Road',
+      'Broken streetlight on Linking Road',
+      'Overflowing garbage bin near Andheri Station',
+      'Blocked drainage at Juhu Beach Road'
+    );
+    delete from public.resources
+    where location_label in ('Command Center', 'Andheri Depot');
+  `);
+
   const volunteerId = users['volunteer@responsys.com'].id;
   const dispatcherId = users['dispatcher@responsys.com'].id;
   const civilianId = users['civilian@responsys.com'].id;
