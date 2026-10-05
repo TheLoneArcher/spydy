@@ -7,7 +7,7 @@ if (!connectionString) {
 }
 
 async function main() {
-  const client = new Client({ connectionString });
+  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
   await client.connect();
 
   console.log('Connected to database, starting setup...');

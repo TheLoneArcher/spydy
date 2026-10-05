@@ -7,7 +7,7 @@ if (!connectionString) {
 }
 
 async function main() {
-  const client = new Client({ connectionString });
+  const client = new Client({ connectionString, ssl: { rejectUnauthorized: false } });
   await client.connect();
 
   console.log('Connected to database, starting seed...');
@@ -47,9 +47,9 @@ async function main() {
       WITH vol1 AS (SELECT id FROM volunteers WHERE profile_id = '${vol1Id}' LIMIT 1),
            vol2 AS (SELECT id FROM volunteers WHERE profile_id = '${vol2Id}' LIMIT 1)
       INSERT INTO tasks (report_id, volunteer_id, assigned_by, status) 
-      SELECT 'a1111111-1111-1111-1111-111111111111', id, '${adminId}', 'dispatched' FROM vol1
+      SELECT 'a1111111-1111-1111-1111-111111111111'::uuid, id, '${adminId}'::uuid, 'dispatched'::status_type FROM vol1
       UNION ALL
-      SELECT 'a3333333-3333-3333-3333-333333333333', id, '${adminId}', 'in_progress' FROM vol2
+      SELECT 'a3333333-3333-3333-3333-333333333333'::uuid, id, '${adminId}'::uuid, 'in_progress'::status_type FROM vol2
       ON CONFLICT DO NOTHING;
 
       -- Update report statuses
@@ -58,9 +58,9 @@ async function main() {
 
       -- Insert Report Updates
       INSERT INTO report_updates (report_id, author_id, message) VALUES 
-      ('a1111111-1111-1111-1111-111111111111', '${adminId}', 'Assigned task to Rajesh Kumar.'),
-      ('a3333333-3333-3333-3333-333333333333', '${adminId}', 'Assigned task to Priya Sharma.'),
-      ('a3333333-3333-3333-3333-333333333333', '${vol2Id}', 'On site, inspecting the garbage situation.')
+      ('a1111111-1111-1111-1111-111111111111'::uuid, '${adminId}'::uuid, 'Assigned task to Rajesh Kumar.'),
+      ('a3333333-3333-3333-3333-333333333333'::uuid, '${adminId}'::uuid, 'Assigned task to Priya Sharma.'),
+      ('a3333333-3333-3333-3333-333333333333'::uuid, '${vol2Id}'::uuid, 'On site, inspecting the garbage situation.')
       ON CONFLICT DO NOTHING;
 
       -- Insert Resources
