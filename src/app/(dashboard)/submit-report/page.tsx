@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Loader2, MapPin, CheckCircle2, AlertTriangle, Send, Camera, X, Sparkles } from 'lucide-react';
+import { Loader2, MapPin, CheckCircle2, AlertTriangle, Send, Camera, X } from 'lucide-react';
 
 const CATEGORIES = ['pothole', 'streetlight', 'garbage', 'water_leakage', 'road_damage', 'drainage', 'other'];
 
@@ -18,9 +18,6 @@ export default function SubmitReportPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   
   const [duplicateWarning, setDuplicateWarning] = useState<any>(null);
 
@@ -98,43 +95,6 @@ export default function SubmitReportPage() {
     closeCamera();
   };
 
-  const categorizeWithAI = async () => {
-    if (!form.title && !form.description && !imagePreview) {
-      setError('Please provide a title, description, or image for AI to analyze.');
-      return;
-    }
-    
-    setAiLoading(true);
-    setError('');
-    
-    try {
-      const res = await fetch('/api/categorize', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: form.title,
-          description: form.description,
-          imageUrl: imagePreview
-        })
-      });
-      
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'AI categorization failed');
-      
-      setForm(prev => ({
-        ...prev,
-        category: data.category || prev.category,
-        severity: data.severity || prev.severity,
-        title: data.suggested_title || prev.title,
-      }));
-      setAiConfidence(data.confidence);
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent, bypassDuplicateCheck = false) => {
     e.preventDefault();
     setLoading(true); setError('');
@@ -193,7 +153,6 @@ export default function SubmitReportPage() {
     setGpsLabel('');
     setGpsAccuracy(null);
     setCapturedAt(null);
-    setAiConfidence(null);
     setDuplicateWarning(null);
     setTimeout(() => setSuccess(false), 5000);
   };
@@ -206,15 +165,6 @@ export default function SubmitReportPage() {
             <h1 className="text-xl font-semibold text-white">Submit a Report</h1>
             <p className="text-[13px] text-[#94A3B8] mt-0.5">Report an issue with AI assistance</p>
           </div>
-          <button 
-            type="button" 
-            onClick={categorizeWithAI} 
-            disabled={aiLoading || cameraOpen}
-            className="flex items-center gap-1.5 text-[12px] text-purple-400 hover:text-purple-300 border border-purple-500/20 bg-purple-600/10 px-3 py-1.5 rounded-md transition-colors"
-          >
-            {aiLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            Auto-fill with AI
-          </button>
         </div>
 
         {success && (
@@ -336,7 +286,6 @@ export default function SubmitReportPage() {
               <div>
                 <label className="block text-[12px] font-medium text-[#94A3B8] mb-1.5 flex justify-between">
                   <span>Category <span className="text-red-400">*</span></span>
-                  {aiConfidence && <span className="text-purple-400 text-[10px]">AI {Math.round(aiConfidence * 100)}%</span>}
                 </label>
                 <select
                   value={form.category} onChange={f('category')}

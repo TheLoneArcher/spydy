@@ -4,13 +4,13 @@ import { supabase } from '@/lib/supabase';
 import { Loader2, AlertCircle, Clock, UserIcon, MoreHorizontal, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-type Status = 'pending' | 'dispatched' | 'in_progress' | 'verified';
+type Status = 'pending' | 'assigned' | 'in_progress' | 'resolved';
 
 const COL_CONFIG: { id: Status; label: string; dot: string }[] = [
   { id: 'pending',     label: 'Pending',     dot: 'bg-slate-400' },
-  { id: 'dispatched',  label: 'Dispatched',  dot: 'bg-purple-400' },
+  { id: 'assigned',    label: 'Assigned',    dot: 'bg-purple-400' },
   { id: 'in_progress', label: 'In Progress', dot: 'bg-amber-400' },
-  { id: 'verified',    label: 'Resolved',    dot: 'bg-emerald-400' },
+  { id: 'resolved',    label: 'Resolved',    dot: 'bg-emerald-400' },
 ];
 
 const SEV: Record<string, string> = {
@@ -31,8 +31,8 @@ export default function TasksPage() {
 
   const fetchAll = useCallback(async () => {
     const [{ data: reps }, { data: vols }] = await Promise.all([
-      supabase.from('need_reports').select('*, profiles(full_name), tasks(status, volunteers(profiles(full_name)))').order('created_at', { ascending: false }),
-      supabase.from('volunteers').select('id, profile_id, skills, is_available, profiles(full_name)').eq('is_available', true),
+      supabase.from('reports').select('*, profiles:reporter_id(full_name), tasks(status, volunteer_id)').order('created_at', { ascending: false }),
+      supabase.from('volunteer_profiles').select('user_id, skills, on_duty, profiles:user_id(full_name)').eq('on_duty', true),
     ]);
     setReports(reps ?? []);
     setVolunteers(vols ?? []);
@@ -51,9 +51,9 @@ export default function TasksPage() {
     };
     init();
     const chan = supabase.channel('tasks_rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'need_reports' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, fetchAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteers' }, fetchAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteer_profiles' }, fetchAll)
       .subscribe();
     return () => { supabase.removeChannel(chan); };
   }, []);
@@ -62,44 +62,15 @@ export default function TasksPage() {
     if (!dispatchModal || !adminId || dispatching) return;
     setDispatching(true);
     const report = dispatchModal.report;
-    const vol = volunteers.find(v => v.id === volunteerId);
+    const vol = volunteers.find(v => v.user_id === volunteerId);
 
     try {
-      // 1. Create the task
-      const { data: task, error: tErr } = await supabase.from('tasks').insert({
-        report_id: report.id,
-        volunteer_id: volunteerId,
-        assigned_by: adminId,
-        status: 'dispatched',
-        notes: 'Assigned via Task Board'
-      }).select().single();
-
-      if (tErr) throw tErr;
-
-      // 2. Mark incident as dispatched
-      await supabase.from('need_reports').update({ status: 'dispatched' }).eq('id', report.id);
-
-      // 3. Log update
-      await supabase.from('report_updates').insert({
-        report_id: report.id,
-        author_id: adminId,
-        message: `Task assigned to ${vol?.profiles?.full_name || 'Volunteer'}`
+      const { error } = await supabase.rpc('dispatch_task', {
+        p_report: report.id,
+        p_volunteer: volunteerId,
+        p_notes: `Assigned via task board to ${vol?.profiles?.full_name || 'volunteer'}`,
       });
-
-      // 4. Mark volunteer busy
-      await supabase.from('volunteers').update({ is_available: false }).eq('id', volunteerId);
-
-      // 5. Notify
-      if (vol?.profile_id) {
-        await supabase.from('notifications').insert({
-          recipient_id: vol.profile_id,
-          title: 'New Task Assignment',
-          message: `You have been dispatched to: ${report.title}`,
-          type: 'assignment',
-          related_report_id: report.id,
-          related_task_id: task?.id
-        });
-      }
+      if (error) throw error;
 
       setDispatchModal(null);
       fetchAll();
@@ -143,7 +114,7 @@ export default function TasksPage() {
               <div className="flex-1 overflow-y-auto p-3 space-y-2.5">
                 {colReports.map(report => {
                   const activeTask = report.tasks?.[0];
-                  const assigned   = activeTask?.volunteers?.profiles?.full_name;
+                  const assigned   = volunteers.find(v => v.user_id === activeTask?.volunteer_id)?.profiles?.full_name;
                   return (
                     <div
                       key={report.id}
@@ -212,8 +183,8 @@ export default function TasksPage() {
                   const matches  = dispatchModal.report.required_skill && vSkills.includes(dispatchModal.report.required_skill);
                   return (
                     <button
-                      key={vol.id}
-                      onClick={() => handleDispatch(vol.id)}
+                      key={vol.user_id}
+                      onClick={() => handleDispatch(vol.user_id)}
                       disabled={dispatching}
                       className="w-full flex items-center gap-3 px-3 py-2.5 rounded-md bg-[#111827] border border-[#1F2937] hover:border-blue-500/30 hover:bg-blue-900/5 transition-colors"
                     >

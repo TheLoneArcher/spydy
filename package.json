@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:setup": "node db-setup.mjs",
-    "db:seed": "node db-seed.mjs"
+    "db:seed": "node db-seed.mjs",
+    "db:demo": "node db-demo-seed.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
