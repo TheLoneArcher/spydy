@@ -71,11 +71,15 @@ export function CameraCapture({
     navigator.geolocation.getCurrentPosition(
       pos => {
         const { latitude, longitude, accuracy } = pos.coords;
-        if (accuracy > 100) {
+        if (accuracy > 10000) {
           setGpsError(
             `GPS accuracy is ±${Math.round(accuracy)}m. For verified reporting, please move outdoors with a clear sky view.`
           );
         } else {
+          // Still warn if > 100m but allow capture
+          if (accuracy > 100) {
+            setGpsError(`GPS accuracy is low (±${Math.round(accuracy)}m). Verification score may be reduced.`);
+          }
           setGpsData({
             lat: latitude,
             lon: longitude,
@@ -368,7 +372,7 @@ export function CameraCapture({
           <button
             type="button"
             onClick={handleSnap}
-            disabled={!streamActive || !gpsData || gpsData.accuracy > 100}
+            disabled={!streamActive || !gpsData || gpsData.accuracy > 10000}
             className="flex items-center gap-2 bg-[var(--brand)] text-[var(--brand-fg)] px-6 py-2.5 rounded-full text-xs font-semibold shadow-lg hover:opacity-90 disabled:opacity-40 transition-all"
           >
             <Camera className="w-4 h-4" />

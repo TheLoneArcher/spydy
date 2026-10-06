@@ -325,6 +325,27 @@ async function main() {
       status: 'in_progress',
       notes: 'Isolate municipal section valve to stop flooding.',
     },
+    {
+      report_id: idMap['alipiri-garbage-parent'],
+      volunteer_id: v1,
+      assigned_by: dispatcherId,
+      status: 'assigned',
+      notes: 'Clear the garbage dump near Alipiri.',
+    },
+    {
+      report_id: idMap['svu-pothole-parent'],
+      volunteer_id: v1,
+      assigned_by: dispatcherId,
+      status: 'completed',
+      notes: 'SVU road pothole fixed successfully.',
+    },
+    {
+      report_id: idMap['airport-road-water'],
+      volunteer_id: v1,
+      assigned_by: dispatcherId,
+      status: 'in_progress',
+      notes: 'Addressing airport road water logging.',
+    },
   ];
   await must(admin.from('tasks').upsert(tasksToSeed, { onConflict: 'report_id' }));
 
