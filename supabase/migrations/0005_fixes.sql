@@ -169,18 +169,48 @@ $$;
 grant execute on function public.deactivate_my_account() to authenticated;
 
 -- A11. Category → required skill
+create or replace function public.skill_for_category(p_category text)
+returns skill_type
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  v_skill skill_type;
+begin
+  select e.enumlabel::skill_type
+  into v_skill
+  from pg_enum e
+  join pg_type t on t.oid = e.enumtypid
+  where t.typname = 'skill_type'
+    and (
+      (p_category = 'pothole' and e.enumlabel in ('road_repair', 'heavy_lifting', 'logistics'))
+      or (p_category = 'streetlight' and e.enumlabel in ('electrical', 'tech_support', 'logistics'))
+      or (p_category in ('water_leak', 'water') and e.enumlabel in ('plumbing', 'logistics'))
+      or (p_category = 'garbage' and e.enumlabel in ('waste_handling', 'logistics', 'heavy_lifting'))
+    )
+  order by case e.enumlabel
+    when 'road_repair' then 1
+    when 'electrical' then 1
+    when 'plumbing' then 1
+    when 'waste_handling' then 1
+    when 'heavy_lifting' then 2
+    when 'tech_support' then 2
+    when 'logistics' then 3
+    else 4
+  end
+  limit 1;
+
+  return v_skill;
+end;
+$$;
+
 create or replace function public.set_required_skill()
 returns trigger
 language plpgsql
 as $$
 begin
-  new.required_skill := coalesce(new.required_skill, case new.category
-    when 'pothole' then 'road_repair'
-    when 'streetlight' then 'electrical'
-    when 'garbage' then 'waste_handling'
-    when 'water_leak' then 'plumbing'
-    else new.required_skill
-  end);
+  new.required_skill := coalesce(new.required_skill, public.skill_for_category(new.category::text));
   return new;
 end;
 $$;
@@ -190,12 +220,7 @@ create trigger reports_set_required_skill
   before insert on public.reports
   for each row execute function public.set_required_skill();
 
-update public.reports set required_skill = case category
-  when 'pothole' then 'road_repair'
-  when 'streetlight' then 'electrical'
-  when 'garbage' then 'waste_handling'
-  when 'water_leak' then 'plumbing'
-end
+update public.reports set required_skill = public.skill_for_category(category::text)
 where required_skill is null;
 
 -- apply_volunteer: p_phone must be sendable as null
@@ -437,7 +462,7 @@ begin
             r.status not in ('duplicate', 'rejected')
         end
       )
-      and (p_category is null or array_length(p_category, 1) is null or r.category = any(p_category))
+      and (p_category is null or array_length(p_category, 1) is null or r.category::text = any(p_category))
       and (not p_mine or r.reporter_id = (select auth.uid()))
       and (
         p_radius_km is null

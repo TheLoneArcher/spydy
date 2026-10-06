@@ -91,6 +91,17 @@ alter table public.volunteer_skills enable row level security;
 alter table public.report_media enable row level security;
 alter table public.task_updates enable row level security;
 
+drop policy if exists skills_read_authenticated on public.skills;
+drop policy if exists applications_read_own_or_admin on public.volunteer_applications;
+drop policy if exists applications_insert_own on public.volunteer_applications;
+drop policy if exists applications_update_admin on public.volunteer_applications;
+drop policy if exists volunteer_skills_read_authenticated on public.volunteer_skills;
+drop policy if exists volunteer_skills_own on public.volunteer_skills;
+drop policy if exists media_read_authenticated on public.report_media;
+drop policy if exists media_insert_owner on public.report_media;
+drop policy if exists task_updates_read_authenticated on public.task_updates;
+drop policy if exists task_updates_insert_author on public.task_updates;
+
 create policy skills_read_authenticated on public.skills for select to authenticated using (true);
 create policy applications_read_own_or_admin on public.volunteer_applications for select to authenticated using (user_id = (select auth.uid()) or public.auth_role() = 'admin');
 create policy applications_insert_own on public.volunteer_applications for insert to authenticated with check (user_id = (select auth.uid()));
@@ -170,7 +181,7 @@ as $$
   from public.reports r
   where r.status not in ('closed', 'rejected', 'duplicate')
     and r.created_at > now() - interval '30 days'
-    and (p_category is null or r.category = p_category)
+    and (p_category is null or r.category::text = p_category)
     and st_dwithin(r.location, st_setsrid(st_makepoint(p_lon, p_lat), 4326)::geography, p_radius_m)
   order by r.created_at desc;
 $$;
@@ -183,7 +194,7 @@ set search_path = public
 as $$
   select r.id, r.title, r.category,
     (0.5 * greatest(0, 1 - st_distance(r.location, st_setsrid(st_makepoint(p_lon, p_lat), 4326)::geography) / 75)
-      + 0.2 * case when r.category = p_category then 1 else 0 end
+      + 0.2 * case when r.category::text = p_category then 1 else 0 end
       + 0.2 * similarity(r.title, p_title))::double precision as similarity
   from public.reports r
   where r.status not in ('closed', 'rejected', 'duplicate')
@@ -199,7 +210,11 @@ grant execute on function public.advance_report_status, public.open_reports_with
 grant execute on function public.confirm_report_resolution to authenticated;
 
 do $$ begin
-  alter publication supabase_realtime add table public.task_updates, public.report_votes;
+  alter publication supabase_realtime add table public.task_updates;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.report_votes;
 exception when duplicate_object then null;
 end $$;
 

@@ -1,6 +1,6 @@
 begin;
 
-create table public.report_votes (
+create table if not exists public.report_votes (
   report_id uuid not null references public.reports (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
   value smallint not null check (value in (-1, 1)),
@@ -9,7 +9,7 @@ create table public.report_votes (
   primary key (report_id, user_id)
 );
 
-create table public.resolution_confirmations (
+create table if not exists public.resolution_confirmations (
   report_id uuid not null references public.reports (id) on delete cascade,
   user_id uuid not null references public.profiles (id) on delete cascade,
   agrees boolean not null,
@@ -23,6 +23,12 @@ alter table public.resolution_confirmations enable row level security;
 
 grant select, insert, update, delete on public.report_votes to authenticated;
 grant select, insert, update on public.resolution_confirmations to authenticated;
+
+drop policy if exists report_votes_select on public.report_votes;
+drop policy if exists report_votes_write_own on public.report_votes;
+drop policy if exists confirmations_select on public.resolution_confirmations;
+drop policy if exists confirmations_write_own on public.resolution_confirmations;
+drop policy if exists confirmations_update_own on public.resolution_confirmations;
 
 create policy report_votes_select on public.report_votes for select to authenticated
 using (true);

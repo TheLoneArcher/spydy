@@ -30,6 +30,8 @@ alter table public.reports add column if not exists duplicate_count integer not 
 -- Volunteer profiles: owner reads own; staff reads all; no direct browser insert/update
 drop policy if exists volunteer_profiles_read_authenticated on public.volunteer_profiles;
 drop policy if exists volunteer_profiles_own on public.volunteer_profiles;
+drop policy if exists volunteer_profiles_select on public.volunteer_profiles;
+drop policy if exists volunteer_profiles_update on public.volunteer_profiles;
 
 create policy volunteer_profiles_select on public.volunteer_profiles
   for select to authenticated
@@ -258,6 +260,12 @@ create table if not exists public.notifications (
   link text,
   created_at timestamptz not null default now()
 );
+alter table public.notifications add column if not exists user_id uuid references public.profiles(id) on delete cascade;
+alter table public.notifications add column if not exists title text;
+alter table public.notifications add column if not exists message text;
+alter table public.notifications add column if not exists read boolean not null default false;
+alter table public.notifications add column if not exists link text;
+alter table public.notifications add column if not exists created_at timestamptz not null default now();
 
 alter table public.notifications enable row level security;
 drop policy if exists notifications_select on public.notifications;
@@ -523,6 +531,7 @@ create table if not exists public.capture_challenges (
   used boolean not null default false,
   created_at timestamptz not null default now()
 );
+alter table public.capture_challenges add column if not exists user_id uuid references public.profiles(id) on delete cascade;
 
 alter table public.capture_challenges enable row level security;
 drop policy if exists capture_challenges_own on public.capture_challenges;
@@ -704,7 +713,7 @@ as $$
     from public.reports r
     where r.status not in ('closed', 'rejected', 'duplicate')
       and r.created_at > now() - interval '30 days'
-      and (p_category is null or r.category = p_category)
+      and (p_category is null or r.category::text = p_category)
       and st_dwithin(r.location, st_setsrid(st_makepoint(p_lon, p_lat), 4326)::geography, 75)
   )
   select
@@ -814,6 +823,7 @@ declare
   v_media public.report_media;
   v_final_lat double precision := p_lat;
   v_final_lon double precision := p_lon;
+  v_category text;
   v_similar record;
 begin
   if auth.uid() is null then
@@ -853,6 +863,17 @@ begin
     raise exception 'report location is outside the service area' using errcode = '22023';
   end if;
 
+  select coalesce(
+    max(e.enumlabel) filter (where e.enumlabel = p_category),
+    max(e.enumlabel) filter (where p_category = 'water_leak' and e.enumlabel = 'water'),
+    max(e.enumlabel) filter (where e.enumlabel = 'other'),
+    p_category
+  )
+  into v_category
+  from pg_enum e
+  join pg_type t on t.oid = e.enumtypid
+  where t.typname = 'issue_category';
+
   insert into public.reports (
     reporter_id, title, description, category, severity,
     location, location_label, is_anonymous, status, created_at, updated_at
@@ -861,7 +882,7 @@ begin
     auth.uid(),
     left(trim(p_title), 160),
     left(trim(p_description), 4000),
-    p_category,
+    v_category,
     p_severity,
     st_setsrid(st_makepoint(v_final_lon, v_final_lat), 4326)::geography,
     left(trim(p_label), 240),
@@ -879,7 +900,7 @@ begin
 
   -- Check for auto duplicate detection (score >= 0.85, distance < 30m, same category)
   select * into v_similar
-  from public.find_similar_reports(v_final_lat, v_final_lon, p_category, p_title, v_media.phash_bigint)
+  from public.find_similar_reports(v_final_lat, v_final_lon, v_category, p_title, v_media.phash_bigint)
   where score >= 0.85 and distance_m < 30 and id <> v_report_id
   order by score desc limit 1;
 
@@ -1083,7 +1104,7 @@ begin
             r.status not in ('duplicate', 'rejected')
         end
       )
-      and (p_category is null or array_length(p_category, 1) is null or r.category = any(p_category))
+      and (p_category is null or array_length(p_category, 1) is null or r.category::text = any(p_category))
       and (not p_mine or r.reporter_id = (select auth.uid()))
       and (
         p_radius_km is null
