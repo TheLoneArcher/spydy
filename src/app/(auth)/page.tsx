@@ -172,7 +172,10 @@ export default function AuthPage() {
       password: process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'ResponSys2026!',
     });
     if (authError) {
-      setError(mapAuthError(authError));
+      const message = authError.message.toLowerCase().includes('invalid login credentials')
+        ? 'Demo account not found yet. Run npm run db:demo, then try again.'
+        : mapAuthError(authError);
+      setError(message);
       setDemoLoading(null);
       return;
     }
@@ -421,12 +424,7 @@ export default function AuthPage() {
                     { role: 'Admin', email: 'admin@responsys.test', desc: 'People & privileged setup' },
                     { role: 'Dispatcher', email: 'dispatcher@responsys.test', desc: 'Triage & volunteer coordination' },
                     { role: 'Volunteer', email: 'volunteer@responsys.test', desc: 'Field tasks & resolution proof' },
-                    { role: 'Volunteer 2', email: 'volunteer2@responsys.test', desc: 'Electrical response' },
-                    { role: 'Volunteer 3', email: 'volunteer3@responsys.test', desc: 'Water and drainage response' },
-                    { role: 'Applicant', email: 'applicant@responsys.test', desc: 'Pending volunteer application' },
                     { role: 'Civilian', email: 'civilian@responsys.test', desc: 'Camera reporting & attestation' },
-                    { role: 'Citizen 1', email: 'citizen.one@responsys.test', desc: 'Community attestation' },
-                    { role: 'Citizen 2', email: 'citizen.two@responsys.test', desc: 'Community attestation' },
                   ].map(acc => (
                     <button
                       key={acc.email}
