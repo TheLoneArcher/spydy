@@ -183,8 +183,6 @@ export default function AuthPage() {
     setDemoLoading(null);
   };
 
-  const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === '1';
-
   return (
     <div className="flex min-h-screen w-full bg-[var(--bg)] text-[var(--fg)]">
       {/* Brand Side Panel */}
@@ -401,8 +399,7 @@ export default function AuthPage() {
           </form>
 
           {/* Demo Accounts Panel */}
-          {isDemoMode && (
-            <div className="mt-8 border border-[var(--border)] rounded-md bg-[var(--surface-2)] overflow-hidden">
+          <div className="mt-8 border border-[var(--border)] rounded-md bg-[var(--surface-2)] overflow-hidden">
               <button
                 type="button"
                 onClick={() => setDemoOpen(!demoOpen)}
@@ -448,9 +445,8 @@ export default function AuthPage() {
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
-      </div>
     </div>
   );
 }
