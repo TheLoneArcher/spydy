@@ -64,7 +64,8 @@ export default function MyTasksPage() {
 
   useEffect(() => {
     let channel: ReturnType<typeof supabase.channel> | null = null;
-    void supabase.auth.getUser().then(({ data: { user } }) => {
+    void supabase.auth.getUser().then((res: { data: { user: any } }) => {
+      const user = res.data.user;
       if (!user) return;
       channel = supabase.channel('my_tasks_' + user.id)
       .on('postgres_changes', { 

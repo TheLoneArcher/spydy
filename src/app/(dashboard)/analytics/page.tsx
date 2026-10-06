@@ -32,12 +32,12 @@ export default function AnalyticsPage() {
         buckets[key] = { new: 0, resolved: 0 };
         return key;
       });
-      r.forEach(rep => {
+      r.forEach((rep: any) => {
         const h = new Date(rep.created_at).getHours();
         const k = Object.keys(buckets).reduce((a, b) => Math.abs(parseInt(a) - h) < Math.abs(parseInt(b) - h) ? a : b);
         if (buckets[k]) buckets[k].new++;
       });
-      t.filter(x => x.status === 'verified' && x.resolved_at).forEach(task => {
+      t.filter((x: any) => x.status === 'verified' && x.resolved_at).forEach((task: any) => {
         const h = new Date(task.resolved_at).getHours();
         const k = Object.keys(buckets).reduce((a, b) => Math.abs(parseInt(a) - h) < Math.abs(parseInt(b) - h) ? a : b);
         if (buckets[k]) buckets[k].resolved++;
@@ -45,22 +45,22 @@ export default function AnalyticsPage() {
 
       const trend = Object.entries(buckets).map(([time, vals]) => ({ time, ...vals }));
 
-      const verifiedTasks = t.filter(x => x.status === 'verified' && x.resolved_at && x.assigned_at);
+      const verifiedTasks = t.filter((x: any) => x.status === 'verified' && x.resolved_at && x.assigned_at);
       const avgMin = verifiedTasks.length
-        ? verifiedTasks.reduce((acc, x) => acc + (new Date(x.resolved_at).getTime() - new Date(x.assigned_at).getTime()) / 60000, 0) / verifiedTasks.length
+        ? verifiedTasks.reduce((acc: number, x: any) => acc + (new Date(x.resolved_at).getTime() - new Date(x.assigned_at).getTime()) / 60000, 0) / verifiedTasks.length
         : 0;
 
       setData({
         totalReports: r.length,
-        activeReports: r.filter(x => x.status !== 'verified').length,
-        resolved: r.filter(x => x.status === 'verified').length,
-        critical: r.filter(x => x.severity === 'critical' && x.status !== 'verified').length,
-        availableVols: v.filter(x => x.is_available).length,
+        activeReports: r.filter((x: any) => x.status !== 'verified').length,
+        resolved: r.filter((x: any) => x.status === 'verified').length,
+        critical: r.filter((x: any) => x.severity === 'critical' && x.status !== 'verified').length,
+        availableVols: v.filter((x: any) => x.is_available).length,
         avgResolution: Math.round(avgMin),
         severityPie: [
-          { name: 'Critical', value: r.filter(x => x.severity === 'critical').length },
-          { name: 'Moderate', value: r.filter(x => x.severity === 'moderate').length },
-          { name: 'Low',      value: r.filter(x => x.severity === 'low').length },
+          { name: 'Critical', value: r.filter((x: any) => x.severity === 'critical').length },
+          { name: 'Moderate', value: r.filter((x: any) => x.severity === 'moderate').length },
+          { name: 'Low',      value: r.filter((x: any) => x.severity === 'low').length },
         ],
         trend,
       });

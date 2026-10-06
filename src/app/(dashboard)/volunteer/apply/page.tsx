@@ -58,7 +58,7 @@ export default function VolunteerApplyPage() {
     }
     const { data: skillRows } = await supabase.from('skills').select('id, slug').in('slug', selectedSkills);
     await supabase.from('volunteer_skills').delete().eq('user_id', userId);
-    const { error: skillsError } = await supabase.from('volunteer_skills').insert((skillRows ?? []).map(skill => ({ user_id: userId, skill_id: skill.id })));
+    const { error: skillsError } = await supabase.from('volunteer_skills').insert((skillRows ?? []).map((skill: any) => ({ user_id: userId, skill_id: skill.id })));
     setSaving(false);
     if (skillsError) setError(skillsError.message);
     else { setExisting('pending'); setMessage('Application submitted for admin review.'); }
