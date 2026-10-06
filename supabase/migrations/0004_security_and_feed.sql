@@ -286,6 +286,20 @@ alter table public.volunteer_skills add column if not exists level text not null
   level in ('beginner', 'intermediate', 'expert')
 );
 
+insert into public.skills (slug, label) values
+  ('first_aid', 'First Aid'),
+  ('electrical', 'Electrical Repair'),
+  ('plumbing', 'Plumbing & Drainage'),
+  ('road_repair', 'Road & Pavement Repair'),
+  ('waste_handling', 'Waste Handling'),
+  ('driving', 'Driving & Transport'),
+  ('logistics', 'Logistics & Dispatch'),
+  ('languages', 'Languages & Translation'),
+  ('heavy_lifting', 'Heavy Lifting'),
+  ('tech_support', 'Tech & Communications')
+on conflict (slug) do update set label = excluded.label;
+
+
 -- apply_volunteer
 create or replace function public.apply_volunteer(
   p_skills text[],
@@ -363,8 +377,17 @@ begin
     foreach v_skill_slug in array p_skills loop
       select id into v_skill_id from public.skills where slug = v_skill_slug;
       insert into public.volunteer_skills (user_id, skill_id, level)
-      values (auth.uid(), v_skill_id, 'intermediate')
-      on conflict (user_id, skill_id) do nothing;
+      values (
+        auth.uid(),
+        v_skill_id,
+        case
+          when p_availability -> 'skill_levels' ->> v_skill_slug in ('beginner', 'intermediate', 'expert') then
+            p_availability -> 'skill_levels' ->> v_skill_slug
+          else
+            'intermediate'
+        end
+      )
+      on conflict (user_id, skill_id) do update set level = excluded.level;
     end loop;
   end if;
 

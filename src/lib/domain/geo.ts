@@ -22,6 +22,17 @@ export function isInsideServiceArea(lat: number, lon: number): boolean {
   );
 }
 
+export const isInsideTirupatiBounds = isInsideServiceArea;
+
+export function haversineDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  return haversineDistanceMeters(lat1, lon1, lat2, lon2) / 1000;
+}
+
 /**
  * Haversine formula to compute great-circle distance between two points in meters
  */

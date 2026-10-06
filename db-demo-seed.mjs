@@ -182,12 +182,16 @@ async function main() {
 
   // 3. Ensure skills in public.skills
   const skillsList = [
-    { slug: 'road_repair', label: 'Road and Pavement Repair' },
-    { slug: 'electrical', label: 'Electrical & Lighting' },
-    { slug: 'plumbing', label: 'Water Supply & Plumbing' },
+    { slug: 'first_aid', label: 'First Aid' },
+    { slug: 'electrical', label: 'Electrical Repair' },
+    { slug: 'plumbing', label: 'Plumbing & Drainage' },
+    { slug: 'road_repair', label: 'Road & Pavement Repair' },
     { slug: 'waste_handling', label: 'Waste Clearance & Sanitation' },
-    { slug: 'logistics', label: 'Logistics & Transport' },
-    { slug: 'tech_support', label: 'Field Technical Support' },
+    { slug: 'driving', label: 'Driving & Transport' },
+    { slug: 'logistics', label: 'Logistics & Dispatch' },
+    { slug: 'languages', label: 'Languages & Translation' },
+    { slug: 'heavy_lifting', label: 'Heavy Lifting' },
+    { slug: 'tech_support', label: 'Tech & Communications' },
   ];
   await admin.from('skills').upsert(skillsList, { onConflict: 'slug' });
 

@@ -1,84 +1,127 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { z } from 'zod';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { Loader2, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-
-const schema = z.object({
-  motivation: z.string().trim().min(20).max(2000),
-  radius: z.coerce.number().int().min(1).max(100),
-  lat: z.coerce.number().min(13.55).max(13.72),
-  lon: z.coerce.number().min(79.33).max(79.58),
-});
-const skills = ['medical', 'logistics', 'heavy_lifting', 'tech_support'];
+import { VolunteerApplyForm } from '@/features/volunteer/VolunteerApplyForm';
 
 export default function VolunteerApplyPage() {
-  const [userId, setUserId] = useState<string | null>(null);
-  const [existing, setExisting] = useState<string | null>(null);
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
-  const [motivation, setMotivation] = useState('');
-  const [radius, setRadius] = useState('10');
-  const [lat, setLat] = useState('13.6288');
-  const [lon, setLon] = useState('79.4192');
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const [user, setUser] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [existingApp, setExistingApp] = useState<any>(null);
+  const [isApproved, setIsApproved] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      setUserId(user.id);
-      const { data } = await supabase.from('volunteer_applications').select('status').eq('user_id', user.id).maybeSingle();
-      setExisting(data?.status ?? null);
+    async function loadData() {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+
+      if (!currentUser) {
+        router.push('/');
+        return;
+      }
+      setUser(currentUser);
+
+      const [profRes, volRes, appRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', currentUser.id).single(),
+        supabase.from('volunteer_profiles').select('*').eq('user_id', currentUser.id).maybeSingle(),
+        supabase.from('volunteer_applications').select('*').eq('user_id', currentUser.id).maybeSingle(),
+      ]);
+
+      if (profRes.data) setProfile(profRes.data);
+      if (volRes.data) setIsApproved(true);
+      if (appRes.data) setExistingApp(appRes.data);
+
       setLoading(false);
-    };
-    void load();
-  }, []);
-
-  const submit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    setError(''); setMessage('');
-    const parsed = schema.safeParse({ motivation, radius, lat, lon });
-    if (!parsed.success || selectedSkills.length === 0 || !userId) {
-      setError('Choose at least one skill and enter a location inside the service area.');
-      return;
     }
-    setSaving(true);
-    const { data: application, error: applicationError } = await supabase.from('volunteer_applications').upsert({
-      user_id: userId, motivation: parsed.data.motivation, radius_km: parsed.data.radius,
-      location: { type: 'Point', coordinates: [parsed.data.lon, parsed.data.lat] }, availability: { weekdays: true }, status: 'pending',
-    }, { onConflict: 'user_id' }).select('id').single();
-    if (applicationError || !application) {
-      setError(applicationError?.message ?? 'Could not submit application.');
-      setSaving(false);
-      return;
-    }
-    const { data: skillRows } = await supabase.from('skills').select('id, slug').in('slug', selectedSkills);
-    await supabase.from('volunteer_skills').delete().eq('user_id', userId);
-    const { error: skillsError } = await supabase.from('volunteer_skills').insert((skillRows ?? []).map((skill: any) => ({ user_id: userId, skill_id: skill.id })));
-    setSaving(false);
-    if (skillsError) setError(skillsError.message);
-    else { setExisting('pending'); setMessage('Application submitted for admin review.'); }
-  };
+    loadData();
+  }, [router]);
 
-  if (loading) return <div className="flex min-h-screen items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div>;
-  if (existing === 'approved') return <div className="mx-auto max-w-xl p-8"><div className="border border-resolved/30 bg-resolved/10 p-5"><CheckCircle2 className="mb-2 h-5 w-5 text-resolved" /><h1 className="font-semibold">You are an approved volunteer</h1><p className="mt-1 text-sm text-muted">Your missions will appear in My Tasks.</p></div></div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center text-[var(--fg-muted)]">
+        <Loader2 className="h-6 w-6 animate-spin text-[var(--brand)]" />
+      </div>
+    );
+  }
+
+  if (isApproved) {
+    return (
+      <main className="mx-auto max-w-xl p-6 md:p-10">
+        <div className="border border-emerald-800/40 bg-emerald-950/20 rounded-xl p-6 text-center space-y-3">
+          <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-400" />
+          <h1 className="text-lg font-semibold text-[var(--fg)]">You are an Approved Field Volunteer</h1>
+          <p className="text-xs text-[var(--fg-muted)] leading-relaxed">
+            Your skills and operational service area have been verified by municipal coordinators. You have active dispatch response privileges.
+          </p>
+          <div className="pt-2 flex justify-center gap-3">
+            <Link
+              href="/my-tasks"
+              className="bg-[var(--brand)] text-[var(--brand-fg)] px-4 py-2 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              Open My Task Missions &rarr;
+            </Link>
+            <Link
+              href="/profile"
+              className="border border-[var(--border)] bg-[var(--surface)] text-[var(--fg)] px-4 py-2 rounded-lg text-xs font-medium hover:bg-[var(--surface-2)] transition-colors"
+            >
+              Manage Duty in Profile
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (existingApp?.status === 'pending' && !showEditForm) {
+    return (
+      <main className="mx-auto max-w-xl p-6 md:p-10">
+        <div className="border border-amber-800/40 bg-amber-950/20 rounded-xl p-6 text-center space-y-3">
+          <Clock className="mx-auto h-10 w-10 text-amber-400" />
+          <h1 className="text-lg font-semibold text-[var(--fg)]">Application Pending Coordinator Review</h1>
+          <p className="text-xs text-[var(--fg-muted)] leading-relaxed">
+            Your application submitted on {new Date(existingApp.created_at).toLocaleDateString()} is currently in the dispatch review queue.
+            You will receive an in-app notification when an admin or dispatcher approves your profile.
+          </p>
+          <div className="pt-3 flex flex-col sm:flex-row justify-center gap-2.5">
+            <button
+              onClick={() => setShowEditForm(true)}
+              className="border border-[var(--border)] bg-[var(--surface)] text-[var(--fg)] px-4 py-2 rounded-lg text-xs font-medium hover:bg-[var(--surface-2)] transition-colors"
+            >
+              Update Application Details
+            </button>
+            <Link
+              href="/feed"
+              className="bg-[var(--brand)] text-[var(--brand-fg)] px-4 py-2 rounded-lg text-xs font-medium hover:opacity-90 transition-opacity"
+            >
+              Return to Civic Feed
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-2xl p-6 md:p-10">
-      <h1 className="font-serif text-3xl text-text">Become a volunteer</h1>
-      <p className="mt-2 text-sm text-text-muted">Tell dispatch what you can help with around Tirupati and Renigunta.</p>
-      {message && <div className="mt-5 flex gap-2 border border-resolved/30 bg-resolved/10 p-3 text-sm text-resolved"><CheckCircle2 className="h-4 w-4" />{message}</div>}
-      {error && <div className="mt-5 flex gap-2 border border-critical/30 bg-critical/10 p-3 text-sm text-critical"><AlertTriangle className="h-4 w-4" />{error}</div>}
-      <form onSubmit={submit} className="mt-7 space-y-5">
-        <fieldset><legend className="mb-2 text-sm font-medium">Skills</legend><div className="grid grid-cols-2 gap-2">{skills.map(skill => <label key={skill} className="flex items-center gap-2 border border-border bg-surface p-3 text-sm capitalize"><input type="checkbox" checked={selectedSkills.includes(skill)} onChange={() => setSelectedSkills(current => current.includes(skill) ? current.filter(item => item !== skill) : [...current, skill])} />{skill.replace('_', ' ')}</label>)}</div></fieldset>
-        <label className="block text-sm font-medium">Motivation<textarea required minLength={20} maxLength={2000} value={motivation} onChange={event => setMotivation(event.target.value)} className="mt-2 min-h-32 w-full border border-border bg-surface p-3 text-sm text-text outline-none focus:ring-2 focus:ring-ring" placeholder="What kind of civic response can you support?" /></label>
-        <div className="grid gap-4 sm:grid-cols-3"><label className="text-sm font-medium">Radius (km)<input type="number" min="1" max="100" value={radius} onChange={event => setRadius(event.target.value)} className="mt-2 w-full border border-border bg-surface p-3 text-sm text-text" /></label><label className="text-sm font-medium">Latitude<input type="number" step="any" value={lat} onChange={event => setLat(event.target.value)} className="mt-2 w-full border border-border bg-surface p-3 text-sm text-text" /></label><label className="text-sm font-medium">Longitude<input type="number" step="any" value={lon} onChange={event => setLon(event.target.value)} className="mt-2 w-full border border-border bg-surface p-3 text-sm text-text" /></label></div>
-        <button disabled={saving} className="border border-accent bg-accent px-4 py-2.5 text-sm font-medium text-accent-foreground disabled:opacity-50">{saving ? 'Submitting...' : existing === 'pending' ? 'Update application' : 'Submit application'}</button>
-      </form>
+    <main className="mx-auto min-h-screen w-full max-w-3xl p-6 md:p-10">
+      <div className="mb-6">
+        <h1 className="text-xl md:text-2xl font-semibold text-[var(--fg)]">Apply to Become a Field Volunteer</h1>
+        <p className="mt-1 text-xs text-[var(--fg-muted)]">
+          Join municipal rapid-response operations in Tirupati to inspect streetlights, fill potholes, and verify leak repairs.
+        </p>
+      </div>
+
+      <VolunteerApplyForm
+        user={user}
+        existingApplication={existingApp}
+        profile={profile}
+      />
     </main>
   );
 }
