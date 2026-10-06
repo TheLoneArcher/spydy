@@ -45,8 +45,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid coordinates provided' }, { status: 400 });
     }
 
-    // 1. Accuracy check: reject if accuracy is worse than 100 meters
-    if (accuracy > 100) {
+    // 1. Accuracy check: reject if accuracy is worse than 1000 meters
+    if (accuracy > 1000) {
       return NextResponse.json(
         { error: `GPS accuracy is too low (${Math.round(accuracy)}m). Please move outdoors for a clear satellite lock.` },
         { status: 400 }
