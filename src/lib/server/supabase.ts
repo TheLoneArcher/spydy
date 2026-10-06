@@ -4,10 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import type { Database } from '@/types/database';
 
-export async function getSupabaseServerClient() {
+export async function getSupabaseServerClient<T = any>() {
   const cookieStore = await cookies();
 
-  return createServerClient<Database>(
+  return createServerClient<T>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -29,16 +29,18 @@ export async function getSupabaseServerClient() {
   );
 }
 
-export function getSupabaseAdminClient() {
+export function getSupabaseAdminClient<T = any>() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceRoleKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY is required for admin server client');
   }
 
-  return createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
+  return createClient<T>(process.env.NEXT_PUBLIC_SUPABASE_URL!, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
     },
   });
 }
+
+export type { Database };
