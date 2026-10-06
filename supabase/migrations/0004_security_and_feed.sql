@@ -309,6 +309,7 @@ on conflict (slug) do update set label = excluded.label;
 
 
 -- apply_volunteer
+drop function if exists public.apply_volunteer(text[], double precision, double precision, integer, jsonb, text, text);
 create or replace function public.apply_volunteer(
   p_skills text[],
   p_lat double precision,
