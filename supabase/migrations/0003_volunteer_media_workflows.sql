@@ -73,7 +73,11 @@ create policy avatars_public_read on storage.objects for select using (bucket_id
 drop policy if exists avatars_owner_write on storage.objects;
 create policy avatars_owner_write on storage.objects for insert to authenticated with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
 drop policy if exists report_media_owner_write on storage.objects;
-create policy report_media_owner_write on storage.objects for insert to authenticated with check (bucket_id = 'report-media' and owner_id = (select auth.uid()));
+create policy report_media_owner_write on storage.objects for insert to authenticated with check (bucket_id = 'report-media' and owner_id = (select auth.uid())::text);
+drop policy if exists avatars_owner_update on storage.objects;
+create policy avatars_owner_update on storage.objects for update to authenticated
+using (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text)
+with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = (select auth.uid())::text);
 
 alter table public.resolution_confirmations add column if not exists verdict text;
 alter table public.resolution_confirmations add column if not exists comment text;
@@ -142,7 +146,7 @@ begin
     insert into public.resolution_confirmations (report_id, user_id, agrees, verdict, image_path)
     values (p_report, auth.uid(), false, 'disputed', p_image_path)
     on conflict (report_id, user_id) do update set agrees = false, verdict = 'disputed', image_path = excluded.image_path;
-    update public.reports set status = 'disputed', updated_at = now() where id = p_report;
+    update public.reports set status = 'reopened', updated_at = now() where id = p_report;
   end if;
 end;
 $$;

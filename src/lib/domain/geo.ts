@@ -3,10 +3,10 @@
  */
 
 export const TIRUPATI_BOUNDS = {
-  minLat: 13.55,
-  maxLat: 13.72,
-  minLon: 79.33,
-  maxLon: 79.58,
+  minLat: 13.1,
+  maxLat: 14.3,
+  minLon: 78.9,
+  maxLon: 80.1,
 } as const;
 
 /**

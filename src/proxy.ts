@@ -3,10 +3,18 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, type NextRequest } from 'next/server';
 
 const ROLE_COOKIE_NAME = 'rs_role_cache';
-const COOKIE_TTL_SECONDS = 300; // 5 minutes cache
+const COOKIE_TTL_SECONDS = 30;
+
+function signingSecret(): string {
+  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY is required to sign the role cache');
+  }
+  return secret;
+}
 
 function signRoleToken(userId: string, role: string, isVolunteer: boolean, expiresAt: number): string {
-  const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'responsys-auth-cache-secret';
+  const secret = signingSecret();
   const payload = `${userId}:${role}:${isVolunteer ? '1' : '0'}:${expiresAt}`;
   const hmac = createHmac('sha256', secret).update(payload).digest('hex');
   return `${payload}.${hmac}`;
@@ -14,7 +22,7 @@ function signRoleToken(userId: string, role: string, isVolunteer: boolean, expir
 
 function verifyRoleToken(token: string, expectedUserId: string): { role: string; isVolunteer: boolean } | null {
   try {
-    const secret = process.env.SUPABASE_SERVICE_ROLE_KEY || 'responsys-auth-cache-secret';
+    const secret = signingSecret();
     const parts = token.split('.');
     if (parts.length !== 2) return null;
 
@@ -68,6 +76,10 @@ export async function proxy(request: NextRequest) {
 
   // Allow completely public routes
   if (pathname === '/api/health' || pathname === '/privacy' || pathname === '/manifest.webmanifest') {
+    return response;
+  }
+
+  if (pathname.startsWith('/auth/')) {
     return response;
   }
 

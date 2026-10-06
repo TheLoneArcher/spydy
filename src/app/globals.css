@@ -1,21 +1,20 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  --bg: 245 243 238;
-  --surface: 255 255 255;
-  --surface-2: 238 235 228;
-  --border: 221 216 205;
-  --text: 22 32 28;
-  --text-muted: 92 104 98;
-  --accent: 15 93 78;
-  --accent-fg: 255 255 255;
+  --bg-rgb: 245 243 238;
+  --surface-rgb: 255 255 255;
+  --surface-2-rgb: 238 235 228;
+  --border-rgb: 221 216 205;
+  --text-rgb: 22 32 28;
+  --text-muted-rgb: 92 104 98;
+  --accent-rgb: 15 93 78;
+  --accent-fg-rgb: 255 255 255;
   --signal: 201 112 26;
-  --critical: 179 54 43;
+  --critical-rgb: 179 54 43;
   --moderate: 183 121 31;
-  --resolved: 46 125 79;
+  --resolved-rgb: 46 125 79;
   --info: 45 95 139;
   --ring: 15 93 78;
   --text-1: #16201C;
@@ -31,18 +30,18 @@
 
 .dark {
   --map-critical: #E5695C;
-  --bg: 13 18 16;
-  --surface: 20 27 24;
-  --surface-2: 27 36 32;
-  --border: 38 50 45;
-  --text: 233 238 234;
-  --text-muted: 142 156 149;
-  --accent: 76 194 165;
-  --accent-fg: 6 36 29;
+  --bg-rgb: 13 18 16;
+  --surface-rgb: 20 27 24;
+  --surface-2-rgb: 27 36 32;
+  --border-rgb: 38 50 45;
+  --text-rgb: 233 238 234;
+  --text-muted-rgb: 142 156 149;
+  --accent-rgb: 76 194 165;
+  --accent-fg-rgb: 6 36 29;
   --signal: 230 154 69;
-  --critical: 229 105 92;
+  --critical-rgb: 229 105 92;
   --moderate: 224 169 78;
-  --resolved: 88 177 124;
+  --resolved-rgb: 88 177 124;
   --info: 111 163 209;
   --ring: 76 194 165;
   --text-1: #E9EEEA;
@@ -55,12 +54,26 @@
   --map-volunteer: #4CC2A5;
 }
 
+:root, .dark {
+  --bg: rgb(var(--bg-rgb));
+  --surface: rgb(var(--surface-rgb));
+  --surface-2: rgb(var(--surface-2-rgb));
+  --border: rgb(var(--border-rgb));
+  --fg: rgb(var(--text-rgb));
+  --fg-muted: rgb(var(--text-muted-rgb));
+  --brand: rgb(var(--accent-rgb));
+  --brand-fg: rgb(var(--accent-fg-rgb));
+  --brand-soft: rgb(var(--accent-rgb) / 0.14);
+  --ok: rgb(var(--resolved-rgb));
+  --danger: rgb(var(--critical-rgb));
+}
+
 * { box-sizing: border-box; }
 
 body {
   font-family: var(--font-plex-sans), sans-serif;
-  background: rgb(var(--bg));
-  color: rgb(var(--text));
+  background: var(--bg);
+  color: var(--fg);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: "cv02","cv03","cv04","cv11";
 }
@@ -72,36 +85,36 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: #374151; }
 
 /* Leaflet overrides */
-.map-shell { background: rgb(var(--bg)); border: 1px solid rgb(var(--border)); border-radius: 10px; overflow: hidden; }
-.leaflet-container { font-family: var(--font-plex-sans), sans-serif !important; background: rgb(var(--bg)) !important; }
+.map-shell { background: rgb(var(--bg-rgb)); border: 1px solid rgb(var(--border-rgb)); border-radius: 10px; overflow: hidden; }
+.leaflet-container { font-family: var(--font-plex-sans), sans-serif !important; background: rgb(var(--bg-rgb)) !important; }
 .leaflet-tile-pane { filter: saturate(0.2) contrast(0.95); }
 .dark .leaflet-tile-pane { filter: saturate(0.3) brightness(0.9); }
 .leaflet-popup-content-wrapper {
-  background: rgb(var(--surface)) !important;
-  border: 1px solid rgb(var(--border)) !important;
+  background: rgb(var(--surface-rgb)) !important;
+  border: 1px solid rgb(var(--border-rgb)) !important;
   border-radius: 6px !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.16) !important;
   color: var(--text-1) !important;
 }
-.leaflet-popup-tip { background: rgb(var(--surface)) !important; }
+.leaflet-popup-tip { background: rgb(var(--surface-rgb)) !important; }
 .leaflet-popup-close-button { color: var(--text-3) !important; }
-.leaflet-control-zoom { border: 1px solid rgb(var(--border)) !important; overflow: hidden !important; }
+.leaflet-control-zoom { border: 1px solid rgb(var(--border-rgb)) !important; overflow: hidden !important; }
 .leaflet-control-zoom a {
   width: 26px !important;
   height: 26px !important;
   line-height: 24px !important;
-  background: rgb(var(--surface)) !important;
+  background: rgb(var(--surface-rgb)) !important;
   color: var(--text-2) !important;
-  border-color: rgb(var(--border)) !important;
+  border-color: rgb(var(--border-rgb)) !important;
 }
-.leaflet-control-zoom a:hover { background: rgb(var(--surface-2)) !important; color: var(--text-1) !important; }
-.leaflet-control-attribution { background: rgb(var(--surface) / 0.88) !important; color: var(--text-3) !important; font-size: 10px !important; }
+.leaflet-control-zoom a:hover { background: rgb(var(--surface-2-rgb)) !important; color: var(--text-1) !important; }
+.leaflet-control-attribution { background: rgb(var(--surface-rgb) / 0.88) !important; color: var(--text-3) !important; font-size: 10px !important; }
 .leaflet-control-attribution a { color: var(--text-2) !important; }
 .custom-leaflet-icon { background: none !important; border: none !important; }
 .map-popup-title { color: var(--text-1); font-size: 13px; font-weight: 600; margin: 0 0 4px; }
 .map-popup-meta, .map-popup-votes { color: var(--text-2); font-size: 11px; margin: 2px 0; }
 .map-popup-link { color: var(--map-low); display: inline-block; font-size: 11px; font-weight: 600; margin-top: 7px; }
-.map-legend { position: absolute; z-index: 1000; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 7px 10px; max-width: 230px; padding: 7px 9px; background: rgb(var(--surface) / 0.92); border: 1px solid rgb(var(--border)); border-radius: 6px; color: var(--text-2); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.map-legend { position: absolute; z-index: 1000; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 7px 10px; max-width: 230px; padding: 7px 9px; background: rgb(var(--surface-rgb) / 0.92); border: 1px solid rgb(var(--border-rgb)); border-radius: 6px; color: var(--text-2); font: 11px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .map-legend span { display: inline-flex; align-items: center; gap: 4px; }
 .map-legend-dot { width: 9px; height: 9px; display: inline-block; border: 2px solid currentColor; border-radius: 50%; }
 .map-legend-dot.critical { color: var(--map-critical); background: color-mix(in srgb, var(--map-critical) 15%, transparent); }
@@ -124,5 +137,12 @@ body {
 }
 
 .animate-fade-in    { animation: fadeIn 200ms ease forwards; }
+.animate-fade-in-up { animation: fadeIn 200ms ease forwards; }
 .animate-slide-left { animation: slideLeft 200ms ease forwards; }
 .animate-ping-slow  { animation: pingSlowAnim 2s ease-in-out infinite; }
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar { display: none; }

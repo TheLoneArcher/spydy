@@ -25,7 +25,10 @@ export async function GET(request: Request) {
     return NextResponse.redirect(errorUrl);
   }
 
-  if (!code) {
+  const tokenHash = url.searchParams.get('token_hash');
+  const otpType = url.searchParams.get('type');
+
+  if (!code && !(tokenHash && otpType)) {
     const fallbackUrl = new URL('/', url.origin);
     fallbackUrl.searchParams.set('error', 'Missing verification code.');
     return NextResponse.redirect(fallbackUrl);
@@ -53,7 +56,12 @@ export async function GET(request: Request) {
     }
   );
 
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+        type: otpType as 'invite' | 'email' | 'signup' | 'magiclink' | 'recovery' | 'email_change',
+        token_hash: tokenHash!,
+      });
   if (error) {
     const errorUrl = new URL('/', url.origin);
     errorUrl.searchParams.set('error', error.message);

@@ -57,7 +57,6 @@ export function isJpegBuffer(buffer: Buffer): boolean {
 export async function stripExifAndNormalize(imageBuffer: Buffer): Promise<Buffer> {
   return sharp(imageBuffer)
     .rotate() // auto-rotates based on EXIF orientation before stripping
-    .withMetadata({}) // drops all EXIF/IPTC/XMP metadata
     .jpeg({ quality: 85, progressive: true })
     .toBuffer();
 }

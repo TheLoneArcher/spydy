@@ -13,49 +13,51 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: reports }, { data: tasks }, { data: vols }, { data: updates }] = await Promise.all([
-        supabase.from('need_reports').select('*'),
+      const [{ data: reports }, { data: tasks }, { data: vols }] = await Promise.all([
+        supabase.from('reports').select('id, status, severity, created_at'),
         supabase.from('tasks').select('*'),
-        supabase.from('volunteers').select('*'),
-        supabase.from('report_updates').select('created_at').order('created_at', { ascending: true }),
+        supabase.from('volunteer_profiles').select('on_duty'),
       ]);
 
       const r = reports ?? [];
       const t = tasks ?? [];
       const v = vols ?? [];
 
-      // Resolution trend — group resolved tasks by hour
+      // Resolution trend — six four-hour buckets covering the last 24 hours.
       const buckets: Record<string, { new: number; resolved: number }> = {};
+      const now = Date.now();
       const hours = Array.from({ length: 6 }, (_, i) => {
-        const h = new Date(); h.setHours(h.getHours() - (5 - i) * 4, 0, 0, 0);
-        const key = h.getHours() + ':00';
+        const start = new Date(now - (5 - i) * 4 * 3600000);
+        const key = `${start.getHours().toString().padStart(2, '0')}:00`;
         buckets[key] = { new: 0, resolved: 0 };
         return key;
       });
       r.forEach((rep: any) => {
-        const h = new Date(rep.created_at).getHours();
-        const k = Object.keys(buckets).reduce((a, b) => Math.abs(parseInt(a) - h) < Math.abs(parseInt(b) - h) ? a : b);
-        if (buckets[k]) buckets[k].new++;
+        const age = now - new Date(rep.created_at).getTime();
+        const bucket = Math.floor(age / (4 * 3600000));
+        const key = hours[Math.max(0, Math.min(5, 5 - bucket))];
+        if (key && age >= 0 && age < 24 * 3600000) buckets[key].new++;
       });
-      t.filter((x: any) => x.status === 'verified' && x.resolved_at).forEach((task: any) => {
-        const h = new Date(task.resolved_at).getHours();
-        const k = Object.keys(buckets).reduce((a, b) => Math.abs(parseInt(a) - h) < Math.abs(parseInt(b) - h) ? a : b);
-        if (buckets[k]) buckets[k].resolved++;
+      t.filter((x: any) => x.status === 'completed' && x.updated_at).forEach((task: any) => {
+        const age = now - new Date(task.updated_at).getTime();
+        const bucket = Math.floor(age / (4 * 3600000));
+        const key = hours[Math.max(0, Math.min(5, 5 - bucket))];
+        if (key && age >= 0 && age < 24 * 3600000) buckets[key].resolved++;
       });
 
       const trend = Object.entries(buckets).map(([time, vals]) => ({ time, ...vals }));
 
-      const verifiedTasks = t.filter((x: any) => x.status === 'verified' && x.resolved_at && x.assigned_at);
-      const avgMin = verifiedTasks.length
-        ? verifiedTasks.reduce((acc: number, x: any) => acc + (new Date(x.resolved_at).getTime() - new Date(x.assigned_at).getTime()) / 60000, 0) / verifiedTasks.length
+      const completedTasks = t.filter((x: any) => x.status === 'completed' && x.updated_at && x.assigned_at);
+      const avgMin = completedTasks.length
+        ? completedTasks.reduce((acc: number, x: any) => acc + (new Date(x.updated_at).getTime() - new Date(x.assigned_at).getTime()) / 60000, 0) / completedTasks.length
         : 0;
 
       setData({
         totalReports: r.length,
-        activeReports: r.filter((x: any) => x.status !== 'verified').length,
-        resolved: r.filter((x: any) => x.status === 'verified').length,
-        critical: r.filter((x: any) => x.severity === 'critical' && x.status !== 'verified').length,
-        availableVols: v.filter((x: any) => x.is_available).length,
+        activeReports: r.filter((x: any) => !['closed', 'resolved_pending_confirmation'].includes(x.status)).length,
+        resolved: r.filter((x: any) => ['closed', 'resolved_pending_confirmation'].includes(x.status)).length,
+        critical: r.filter((x: any) => x.severity === 'critical' && !['closed', 'resolved_pending_confirmation'].includes(x.status)).length,
+        availableVols: v.filter((x: any) => x.on_duty).length,
         avgResolution: Math.round(avgMin),
         severityPie: [
           { name: 'Critical', value: r.filter((x: any) => x.severity === 'critical').length },

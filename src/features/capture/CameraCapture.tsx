@@ -147,11 +147,20 @@ export function CameraCapture({
 
     return () => {
       stopTracks();
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
     };
-  }, [startCamera, acquireGps, stopTracks, previewUrl]);
+  }, [startCamera, acquireGps, stopTracks]);
+
+  useEffect(() => {
+    if (streamActive && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [streamActive]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
 
   // 3. Capture frame to canvas
   const handleSnap = () => {

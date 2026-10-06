@@ -189,7 +189,7 @@ export default function ProfilePage() {
     }
 
     try {
-      const { error } = await supabase.from('profiles').update({ is_active: false }).eq('id', profile.id);
+      const { error } = await supabase.rpc('deactivate_my_account');
       if (error) throw error;
 
       await supabase.auth.signOut();

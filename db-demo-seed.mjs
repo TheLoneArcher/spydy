@@ -46,7 +46,7 @@ const accounts = [
   { email: 'citizen.two@responsys.test', name: 'Anita Devi', role: 'civilian' },
 ];
 
-const point = (lon, lat) => ({ type: 'Point', coordinates: [lon, lat] });
+const point = (lon, lat) => `SRID=4326;POINT(${lon} ${lat})`;
 const age = hours => new Date(Date.now() - hours * 3600000).toISOString();
 
 async function ensureUser(account) {
@@ -145,10 +145,11 @@ async function seedStorageMedia(users) {
     const storagePath = `demo/${file}`;
 
     try {
-      await admin.storage.from('report-media').upload(storagePath, buffer, {
+      const { error } = await admin.storage.from('report-media').upload(storagePath, buffer, {
         contentType: 'image/jpeg',
         upsert: true,
       });
+      if (error) throw error;
       uploadedPaths[file] = storagePath;
     } catch {
       // If storage bucket is not available in mock/local, keep relative path
@@ -255,15 +256,17 @@ async function main() {
   const idMap = Object.fromEntries(insertedReports.map(r => [r.seed_key, r.id]));
 
   // 8. Link duplicate relationships for the 6 duplicate clusters
+  const duplicateCounts = new Map();
   for (const def of reportDefinitions) {
     if (def.dupOf && idMap[def.dupOf]) {
       const dupId = idMap[def.key];
       const parentId = idMap[def.dupOf];
       await admin.from('reports').update({ duplicate_of: parentId, status: 'duplicate' }).eq('id', dupId);
-      // Bump parent duplicate count
-      const { data: parentRow } = await admin.from('reports').select('duplicate_count').eq('id', parentId).single();
-      await admin.from('reports').update({ duplicate_count: (parentRow?.duplicate_count || 0) + 1 }).eq('id', parentId);
+      duplicateCounts.set(parentId, (duplicateCounts.get(parentId) || 0) + 1);
     }
+  }
+  for (const [parentId, count] of duplicateCounts) {
+    await admin.from('reports').update({ duplicate_count: count }).eq('id', parentId);
   }
 
   // 9. Seed report_media records
@@ -282,10 +285,10 @@ async function main() {
       accuracy_m: 4.2,
       captured_at: age(12),
       exif_stripped: true,
-      phash_bigint: 1234567890123456n.toString(),
+      phash_bigint: (1234567890123456n + BigInt(reportDefinitions.indexOf(def))).toString(),
       ai_confidence: 0.94,
       ai_model: 'google/gemini-2.0-flash-001',
-      ai_label: JSON.stringify({ category: def.cat, confidence: 0.94, severity: def.sev }),
+      ai_label: { category: def.cat, confidence: 0.94, severity: def.sev },
     });
   }
   // Delete old media rows for these reports and insert new

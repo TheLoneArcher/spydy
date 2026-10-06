@@ -105,12 +105,20 @@ export default function MyTasksPage() {
   const displayed = tab === 'active' ? active : done;
 
   const nextStatus: Record<string, string> = {
-    assigned:    'in_progress',
+    assigned:    'accepted',
+    accepted:    'en_route',
+    en_route:    'on_site',
+    on_site:     'in_progress',
     in_progress: 'completed',
+    blocked:     'accepted',
   };
   const nextLabel: Record<string, string> = {
-    assigned:    'Start task',
+    assigned:    'Accept task',
+    accepted:    'Start travel',
+    en_route:    'Arrived',
+    on_site:     'Begin work',
     in_progress: 'Mark complete',
+    blocked:     'Resume',
   };
 
   return (
@@ -147,7 +155,7 @@ export default function MyTasksPage() {
               {tab === 'active' ? 'No active tasks.' : 'No completed tasks yet.'}
             </p>
             {tab === 'active' && (
-              <p className="text-[12px] text-[#4B5563] mt-1">Check Nearby Issues to volunteer for open incidents.</p>
+              <p className="text-[12px] text-[#4B5563] mt-1">New assignments will appear here when dispatch sends one.</p>
             )}
           </div>
         ) : (

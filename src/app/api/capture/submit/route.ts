@@ -55,25 +55,19 @@ export async function POST(req: Request) {
 
     const adminClient = getSupabaseAdminClient();
 
-    // 2. Nonce check: belongs to user, unused, unexpired
+    // 2. Atomically claim a fresh nonce so concurrent submissions cannot replay it.
     const { data: challenge, error: chalErr } = await adminClient
       .from('capture_challenges')
-      .select('*')
+      .update({ used: true })
       .eq('nonce', nonce)
       .eq('user_id', user.id)
-      .single();
+      .eq('used', false)
+      .gt('expires_at', new Date().toISOString())
+      .select('nonce')
+      .maybeSingle();
 
     if (chalErr || !challenge) {
       return NextResponse.json({ error: 'Invalid or missing capture challenge nonce' }, { status: 403 });
-    }
-
-    if (challenge.used) {
-      return NextResponse.json({ error: 'Capture nonce has already been used' }, { status: 403 });
-    }
-
-    const expiresAt = new Date(challenge.expires_at).getTime();
-    if (Date.now() > expiresAt) {
-      return NextResponse.json({ error: 'Capture session expired. Please take a new photo.' }, { status: 403 });
     }
 
     // 3. Service area boundary check via DB RPC
@@ -139,10 +133,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to securely store captured evidence.' }, { status: 500 });
     }
 
-    // 9. Mark nonce used
-    await adminClient.from('capture_challenges').update({ used: true }).eq('nonce', nonce);
-
-    // 10. Insert record into report_media
+    // 9. Insert record into report_media
     const { error: mediaErr } = await adminClient.from('report_media').insert({
       id: mediaId,
       uploaded_by: user.id,
@@ -150,7 +141,7 @@ export async function POST(req: Request) {
       storage_path: storagePath,
       sha256,
       phash: phashBigInt.toString(),
-      phash_bigint: Number(phashBigInt & BigInt(0x7fffffffffffffffn)), // safe integer store if needed
+      phash_bigint: BigInt.asIntN(64, phashBigInt).toString(),
       lat,
       lng: lon,
       accuracy_m: accuracy,

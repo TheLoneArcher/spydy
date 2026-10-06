@@ -541,6 +541,8 @@ language sql immutable as $$
   select 3 as triage_threshold, 30 as max_votes_per_hour, 10 as min_account_age_mins;
 $$;
 
+drop function if exists public.vote_report(uuid, smallint);
+
 create or replace function public.vote_report(p_report uuid, p_value smallint)
 returns table (upvotes bigint, downvotes bigint, score bigint, my_vote smallint)
 language plpgsql
@@ -1142,7 +1144,11 @@ grant execute on function public.feed_reports(double precision, double precision
 -- =====================================================================
 
 do $$ begin
-  alter publication supabase_realtime add table public.report_votes, public.report_media, public.notifications;
+  alter publication supabase_realtime add table public.report_media;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table public.notifications;
 exception when duplicate_object then null;
 end $$;
 

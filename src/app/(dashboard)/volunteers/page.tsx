@@ -50,7 +50,7 @@ export default function VolunteersPage() {
       }
     }
 
-    const { error } = await supabase.from('volunteer_profiles').update({ on_duty: !cur }).eq('user_id', id);
+    const { error } = await supabase.rpc('staff_set_volunteer_duty', { p_user: id, p_on_duty: !cur });
     if (error) console.error('Toggle error:', error.message);
     else fetchVolunteers();
   };
@@ -120,7 +120,11 @@ export default function VolunteersPage() {
           className="bg-[#111827] border border-[#1F2937] rounded-md px-3 py-2 text-sm text-[#94A3B8] focus:outline-none focus:border-blue-500 transition-colors"
         >
           <option value="all">All skills</option>
-          <option value="medical">Medical</option>
+          <option value="road_repair">Road Repair</option>
+          <option value="electrical">Electrical</option>
+          <option value="plumbing">Plumbing</option>
+          <option value="waste_handling">Waste Handling</option>
+          <option value="driving">Driving</option>
           <option value="logistics">Logistics</option>
           <option value="heavy_lifting">Heavy Lifting</option>
           <option value="tech_support">Tech Support</option>
@@ -188,7 +192,7 @@ export default function VolunteersPage() {
                     <td className="px-4 py-3.5">
                       <span className={`inline-flex items-center gap-1.5 text-[12px] font-medium ${vol.on_duty ? 'text-emerald-400' : 'text-[#94A3B8]'}`}>
                         <Circle className={`w-2 h-2 fill-current ${vol.on_duty ? 'text-emerald-500' : 'text-[#64748B]'}`} />
-                        {vol.on_duty ? 'Available' : 'On task'}
+                        {vol.on_duty ? 'Available' : 'Off duty'}
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-[12px] text-[#64748B]">

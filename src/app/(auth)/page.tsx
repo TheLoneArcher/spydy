@@ -39,10 +39,8 @@ export default function AuthPage() {
     let active = true;
     async function loadStats() {
       try {
-        const { count, error: countErr } = await supabase
-          .from('reports')
-          .select('id', { count: 'exact', head: true })
-          .eq('status', 'closed');
+        const { data, error: countErr } = await supabase.rpc('public_stats');
+        const count = Array.isArray(data) ? data[0]?.closed_count : data?.closed_count;
 
         if (!countErr && count !== null && active && count > 0) {
           setFixedCount(count);

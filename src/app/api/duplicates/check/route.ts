@@ -49,7 +49,7 @@ export async function POST(req: Request) {
       p_lon: lon,
       p_category: category || null,
       p_title: title || '',
-      p_phash: phashBigInt != null ? Number(phashBigInt & BigInt(0x7fffffffffffffffn)) : null,
+      p_phash: phashBigInt != null ? BigInt.asIntN(64, phashBigInt).toString() : null,
     });
 
     if (rpcErr) {
