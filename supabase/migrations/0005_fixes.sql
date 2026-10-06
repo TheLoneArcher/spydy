@@ -224,7 +224,7 @@ update public.reports set required_skill = public.skill_for_category(category::t
 where required_skill is null;
 
 -- apply_volunteer: p_phone must be sendable as null
-drop function if exists public.apply_volunteer(text[], double precision, double precision, int, jsonb, text, text);
+drop function if exists public.apply_volunteer(text[], double precision, double precision, integer, jsonb, text, text);
 create function public.apply_volunteer(
   p_skills text[],
   p_lat double precision,
@@ -232,7 +232,7 @@ create function public.apply_volunteer(
   p_radius_km int,
   p_availability jsonb,
   p_motivation text,
-  p_phone text default null
+  p_phone text
 )
 returns uuid
 language plpgsql
