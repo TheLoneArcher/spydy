@@ -242,7 +242,7 @@ async function main() {
       seed_key: def.key,
       title: def.title,
       description: `${def.title}. Verified by municipal sensor triangulation and local citizen reporting. Immediate civic response recommended.`,
-      category: def.cat === 'water_leak' ? 'water' : def.cat,
+      category: def.cat,
       severity: def.sev,
       status: def.st,
       reporter_id: users[reporterEmail].id,
