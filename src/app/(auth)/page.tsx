@@ -21,6 +21,7 @@ export default function AuthPage() {
   const [notice, setNotice] = useState('');
   const [fixedCount, setFixedCount] = useState<number>(142);
   const [demoOpen, setDemoOpen] = useState(false);
+  const [demoLoading, setDemoLoading] = useState<string | null>(null);
 
   // Check for error in query params (e.g., from auth callback or proxy redirect)
   useEffect(() => {
@@ -161,12 +162,25 @@ export default function AuthPage() {
     }
   };
 
-  const fillDemoAccount = (demoEmail: string) => {
-    setEmail(demoEmail);
-    setPassword(process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'ResponSys2026!');
-    setIsLogin(true);
+  const signInDemoAccount = async (demoEmail: string) => {
+    setDemoLoading(demoEmail);
     setError('');
     setNotice('');
+    setIsLogin(true);
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: demoEmail,
+      password: process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'ResponSys2026!',
+    });
+    if (authError) {
+      setError(mapAuthError(authError));
+      setDemoLoading(null);
+      return;
+    }
+    if (data.user) {
+      router.push('/feed');
+      router.refresh();
+    }
+    setDemoLoading(null);
   };
 
   const isDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE === '1';
@@ -414,18 +428,21 @@ export default function AuthPage() {
                     { role: 'Volunteer 3', email: 'volunteer3@responsys.test', desc: 'Water and drainage response' },
                     { role: 'Applicant', email: 'applicant@responsys.test', desc: 'Pending volunteer application' },
                     { role: 'Civilian', email: 'civilian@responsys.test', desc: 'Camera reporting & attestation' },
+                    { role: 'Citizen 1', email: 'citizen.one@responsys.test', desc: 'Community attestation' },
+                    { role: 'Citizen 2', email: 'citizen.two@responsys.test', desc: 'Community attestation' },
                   ].map(acc => (
                     <button
                       key={acc.email}
                       type="button"
-                      onClick={() => fillDemoAccount(acc.email)}
+                      onClick={() => void signInDemoAccount(acc.email)}
+                      disabled={loading || demoLoading !== null}
                       className="w-full text-left p-1.5 rounded hover:bg-[var(--surface-2)] flex items-center justify-between text-xs transition-colors"
                     >
                       <div>
                         <span className="font-semibold text-[var(--fg)]">{acc.role}</span>
                         <span className="block text-[10px] text-[var(--fg-muted)]">{acc.email}</span>
                       </div>
-                      <span className="text-[10px] text-[var(--brand)] font-mono">Fill</span>
+                      <span className="text-[10px] text-[var(--brand)] font-mono">{demoLoading === acc.email ? 'Signing in...' : 'Enter'}</span>
                     </button>
                   ))}
                 </div>
