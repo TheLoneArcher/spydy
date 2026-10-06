@@ -163,7 +163,7 @@ export default function AuthPage() {
 
   const fillDemoAccount = (demoEmail: string) => {
     setEmail(demoEmail);
-    setPassword('ResponSys2026!');
+    setPassword(process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'ResponSys2026!');
     setIsLogin(true);
     setError('');
     setNotice('');
@@ -410,6 +410,9 @@ export default function AuthPage() {
                     { role: 'Admin', email: 'admin@responsys.test', desc: 'People & privileged setup' },
                     { role: 'Dispatcher', email: 'dispatcher@responsys.test', desc: 'Triage & volunteer coordination' },
                     { role: 'Volunteer', email: 'volunteer@responsys.test', desc: 'Field tasks & resolution proof' },
+                    { role: 'Volunteer 2', email: 'volunteer2@responsys.test', desc: 'Electrical response' },
+                    { role: 'Volunteer 3', email: 'volunteer3@responsys.test', desc: 'Water and drainage response' },
+                    { role: 'Applicant', email: 'applicant@responsys.test', desc: 'Pending volunteer application' },
                     { role: 'Civilian', email: 'civilian@responsys.test', desc: 'Camera reporting & attestation' },
                   ].map(acc => (
                     <button

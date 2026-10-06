@@ -35,8 +35,11 @@ const SEVERITY_COLOR: Record<string, string> = {
 
 const STATUS_COLOR: Record<string, string> = {
   pending:     'text-slate-400 bg-slate-500/10 border-slate-500/20',
+  triaged:     'text-cyan-400 bg-cyan-500/10 border-cyan-500/20',
   assigned:    'text-purple-400 bg-purple-500/10 border-purple-500/20',
   in_progress: 'text-amber-400 bg-amber-500/10 border-amber-500/20',
+  reopened:    'text-orange-400 bg-orange-500/10 border-orange-500/20',
+  resolved_pending_confirmation: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
   resolved:    'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
   closed:      'text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
 };
@@ -59,12 +62,13 @@ export default function MapPage() {
         setLoading(false);
         return;
       }
-      const { data: prof } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+      const { data: prof } = await supabase.from('profiles').select('id, full_name, role').eq('id', user.id).single();
       setCurrentUser(prof);
+      const isStaff = prof?.role === 'admin' || prof?.role === 'dispatcher';
 
       const [repsData, volsData, updatesData] = await Promise.all([
-        supabase.from('reports').select('*, profiles:reporter_id(full_name)').order('created_at', { ascending: false }),
-        supabase.from('volunteer_profiles').select('user_id, skills, location, on_duty, profiles:user_id(full_name)').eq('on_duty', true),
+        supabase.from('reports').select(isStaff ? '*, profiles:reporter_id(full_name)' : 'id,title,description,category,severity,status,location,location_label,created_at,required_skill').neq('status', 'duplicate').order('created_at', { ascending: false }).limit(500),
+        isStaff ? supabase.from('volunteer_profiles').select('user_id, skills, location, on_duty, profiles:user_id(full_name)').eq('on_duty', true) : Promise.resolve({ data: [] as any[] }),
         supabase.from('report_events').select('*, profiles:actor_id(full_name)').order('created_at', { ascending: false }).limit(20)
       ]);
 
@@ -82,13 +86,18 @@ export default function MapPage() {
       setLoading(false);
     };
     init();
+    let refreshTimer: ReturnType<typeof setTimeout> | undefined;
+    const refresh = () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => void init(), 500);
+    };
 
     const chan = supabase.channel('map_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => init())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'report_events' }, () => init())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteer_profiles' }, () => init())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, refresh)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'report_events' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'volunteer_profiles' }, refresh)
       .subscribe();
-    return () => { supabase.removeChannel(chan); };
+    return () => { if (refreshTimer) clearTimeout(refreshTimer); void supabase.removeChannel(chan); };
   }, []);
 
   const handleDispatch = async (volunteerId: string) => {
@@ -113,12 +122,12 @@ export default function MapPage() {
     }
   };
 
-  const filtered = reports.filter(r => filter === 'all' || r.severity === filter || r.status === filter);
+  const filtered = reports.filter(r => filter === 'all' || r.severity === filter || (filter === 'resolved' ? ['resolved', 'resolved_pending_confirmation', 'closed'].includes(r.status) : r.status === filter));
   const stats = {
     active:   reports.filter(r => !['closed', 'rejected', 'duplicate'].includes(r.status)).length,
     critical: reports.filter(r => r.severity === 'critical' && !['closed', 'rejected', 'duplicate'].includes(r.status)).length,
     pending:  reports.filter(r => r.status === 'pending').length,
-    resolved: reports.filter(r => ['resolved', 'closed'].includes(r.status)).length,
+    resolved: reports.filter(r => ['resolved', 'resolved_pending_confirmation', 'closed'].includes(r.status)).length,
   };
 
   const sortedVolunteers = useMemo(() => {
@@ -150,7 +159,11 @@ export default function MapPage() {
               reports={filtered} 
               onSelectReport={setSelected} 
               center={selected ? (parsePoint(selected.location) || undefined) : undefined}
-              zoom={selected ? 13 : 5}
+              zoom={selected ? 14 : 12}
+              volunteerLocations={volunteers.flatMap(v => {
+                const position = parsePoint(v.last_location);
+                return position ? [{ id: v.id, name: v.profiles?.full_name || 'Volunteer', lat: position[0], lng: position[1] }] : [];
+              })}
             />
           </div>
 
@@ -186,7 +199,7 @@ export default function MapPage() {
                       {selected.severity}
                     </span>
                     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${STATUS_COLOR[selected.status] || ''}`}>
-                      {selected.status.replace('_', ' ')}
+                      {selected.status.replaceAll('_', ' ')}
                     </span>
                   </div>
                   <h3 className="text-lg font-semibold text-white leading-snug">{selected.title}</h3>
@@ -219,7 +232,7 @@ export default function MapPage() {
                 )}
 
                 {/* Dispatch panel */}
-                {(currentUser?.role === 'admin' || currentUser?.role === 'dispatcher') && (selected.status === 'pending' || selected.status === 'assigned') && (
+                {(currentUser?.role === 'admin' || currentUser?.role === 'dispatcher') && ['pending', 'triaged', 'reopened', 'assigned'].includes(selected.status) && (
                   <div className="pt-4 border-t border-[#1F2937]">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] uppercase tracking-widest font-semibold text-[#64748B]">
@@ -282,7 +295,7 @@ export default function MapPage() {
                   { label: 'Critical', value: 'critical' },
                   { label: 'Moderate', value: 'moderate' },
                   { label: 'Pending', value: 'pending' },
-                  { label: 'Resolved', value: 'closed' },
+                  { label: 'Resolved', value: 'resolved' },
                 ].map(f => (
                   <button
                     key={f.value}

@@ -4,13 +4,14 @@ import { supabase } from '@/lib/supabase';
 import { Loader2, AlertCircle, Clock, UserIcon, MoreHorizontal, ChevronDown } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-type Status = 'pending' | 'assigned' | 'in_progress' | 'resolved';
+type Status = 'pending' | 'triaged' | 'assigned' | 'in_progress' | 'resolved_pending_confirmation' | 'closed' | 'reopened';
 
-const COL_CONFIG: { id: Status; label: string; dot: string }[] = [
-  { id: 'pending',     label: 'Pending',     dot: 'bg-slate-400' },
-  { id: 'assigned',    label: 'Assigned',    dot: 'bg-purple-400' },
-  { id: 'in_progress', label: 'In Progress', dot: 'bg-amber-400' },
-  { id: 'resolved',    label: 'Resolved',    dot: 'bg-emerald-400' },
+const COL_CONFIG: { id: string; statuses: Status[]; label: string; dot: string }[] = [
+  { id: 'pending', statuses: ['pending', 'triaged', 'reopened'], label: 'Pending', dot: 'bg-slate-400' },
+  { id: 'assigned', statuses: ['assigned'], label: 'Assigned', dot: 'bg-purple-400' },
+  { id: 'in_progress', statuses: ['in_progress'], label: 'In Progress', dot: 'bg-amber-400' },
+  { id: 'awaiting', statuses: ['resolved_pending_confirmation'], label: 'Awaiting confirmation', dot: 'bg-violet-400' },
+  { id: 'closed', statuses: ['closed'], label: 'Closed', dot: 'bg-emerald-400' },
 ];
 
 const SEV: Record<string, string> = {
@@ -103,7 +104,7 @@ export default function TasksPage() {
 
       <div className="flex-1 overflow-x-auto overflow-y-hidden p-5 gap-4 flex">
         {COL_CONFIG.map(col => {
-          const colReports = filtered.filter(r => r.status === col.id);
+          const colReports = filtered.filter(r => col.statuses.includes(r.status));
           return (
             <div key={col.id} className="flex-shrink-0 w-72 flex flex-col bg-[#0D1117] border border-[#1F2937] rounded-lg overflow-hidden">
               <div className="flex items-center gap-2 px-4 py-3 border-b border-[#1F2937]">
@@ -120,14 +121,14 @@ export default function TasksPage() {
                       key={report.id}
                       className={`bg-[#111827] border border-[#1F2937] hover:border-[#374151] rounded-md p-3 group transition-colors ${col.id === 'pending' ? 'cursor-pointer' : 'cursor-default'}`}
                       onClick={() => {
-                        if (col.id === 'pending') setDispatchModal({ report });
+                        if (['pending', 'triaged', 'reopened', 'assigned'].includes(report.status)) setDispatchModal({ report });
                       }}
                     >
                       <div className="flex items-center justify-between mb-2">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${SEV[report.severity] ?? ''}`}>
                           {report.severity}
                         </span>
-                        {col.id === 'pending' && (
+                        {['pending', 'triaged', 'reopened', 'assigned'].includes(report.status) && (
                           <span className="text-[11px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-medium">Dispatch →</span>
                         )}
                       </div>

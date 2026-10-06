@@ -169,7 +169,7 @@ export async function proxy(request: NextRequest) {
   const isDispatcher = role === 'dispatcher' || isAdmin;
 
   // 1. Admin-only routes: /admin/*
-  if (pathname.startsWith('/admin')) {
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) {
     if (!isAdmin) {
       if (pathname.startsWith('/api/')) {
         return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
@@ -189,7 +189,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // 3. Legacy staff routes redirection (/map, /tasks, /volunteers, /analytics, /resources, /reports)
-  const legacyStaffRoutes = ['/map', '/tasks', '/volunteers', '/analytics', '/resources', '/reports'];
+  const legacyStaffRoutes = ['/tasks', '/volunteers', '/analytics', '/resources', '/reports'];
   for (const legacy of legacyStaffRoutes) {
     if (pathname === legacy || pathname.startsWith(`${legacy}/`)) {
       if (isDispatcher) {

@@ -29,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'feed', label: 'Civic Feed', href: '/feed', icon: Rss },
   { id: 'submit', label: 'Report Issue', href: '/submit-report', icon: Camera },
   { id: 'my-reports', label: 'My Reports', href: '/my-reports', icon: FileText },
+  { id: 'map', label: 'Live Map', href: '/map', icon: Map },
 
   // Volunteer items (only for approved volunteers or staff)
   { id: 'my-tasks', label: 'My Tasks', href: '/my-tasks', icon: ClipboardList, volunteerOnly: true },

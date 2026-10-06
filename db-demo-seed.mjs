@@ -10,7 +10,7 @@ if (process.env.ALLOW_DEMO_SEED !== '1') {
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const password = process.env.DEMO_PASSWORD || 'ResponSys2026!';
+const password = process.env.DEMO_PASSWORD || process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'ResponSys2026!';
 
 if (!url || !serviceRoleKey) {
   console.error('Error: NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
@@ -33,6 +33,12 @@ if (!isLocalhost && !matchesAllowedRef && !process.env.FORCE_DEMO_SEED) {
 const admin = createClient(url, serviceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
+
+const must = async (promise) => {
+  const result = await promise;
+  if (result.error) throw result.error;
+  return result;
+};
 
 const accounts = [
   { email: 'admin@responsys.test', name: 'ResponSys Admin', role: 'admin' },
@@ -194,7 +200,7 @@ async function main() {
     { slug: 'heavy_lifting', label: 'Heavy Lifting' },
     { slug: 'tech_support', label: 'Tech & Communications' },
   ];
-  await admin.from('skills').upsert(skillsList, { onConflict: 'slug' });
+  await must(admin.from('skills').upsert(skillsList, { onConflict: 'slug' }));
 
   // 4. Seed 3 Volunteers with distinct skills
   const v1 = users['volunteer@responsys.test'].id;
@@ -202,15 +208,15 @@ async function main() {
   const v3 = users['volunteer3@responsys.test'].id;
   const dispatcherId = users['dispatcher@responsys.test'].id;
 
-  await admin.from('volunteer_profiles').upsert([
+  await must(admin.from('volunteer_profiles').upsert([
     { user_id: v1, skills: ['road_repair', 'waste_handling'], location: point(79.4192, 13.6288), on_duty: true, max_radius_km: 25 },
     { user_id: v2, skills: ['electrical', 'tech_support'], location: point(79.5120, 13.6360), on_duty: true, max_radius_km: 20 },
     { user_id: v3, skills: ['plumbing', 'logistics'], location: point(79.4560, 13.6130), on_duty: true, max_radius_km: 15 },
-  ], { onConflict: 'user_id' });
+  ], { onConflict: 'user_id' }));
 
   // 5. Seed 1 pending volunteer application
   const applicantId = users['applicant@responsys.test'].id;
-  await admin.from('volunteer_applications').upsert([
+  await must(admin.from('volunteer_applications').upsert([
     {
       user_id: applicantId,
       motivation: 'I want to help Tirupati municipal corporation rapidly respond to hazardous civic issues and potholes in my community.',
@@ -220,7 +226,7 @@ async function main() {
       phone: '+919876543210',
       status: 'pending',
     },
-  ], { onConflict: 'user_id' });
+  ], { onConflict: 'user_id' }));
 
   // 6. Seed media files
   const mediaPaths = await seedStorageMedia(users);
@@ -261,12 +267,12 @@ async function main() {
     if (def.dupOf && idMap[def.dupOf]) {
       const dupId = idMap[def.key];
       const parentId = idMap[def.dupOf];
-      await admin.from('reports').update({ duplicate_of: parentId, status: 'duplicate' }).eq('id', dupId);
+      await must(admin.from('reports').update({ duplicate_of: parentId, status: 'duplicate' }).eq('id', dupId));
       duplicateCounts.set(parentId, (duplicateCounts.get(parentId) || 0) + 1);
     }
   }
   for (const [parentId, count] of duplicateCounts) {
-    await admin.from('reports').update({ duplicate_count: count }).eq('id', parentId);
+    await must(admin.from('reports').update({ duplicate_count: count }).eq('id', parentId));
   }
 
   // 9. Seed report_media records
@@ -293,8 +299,8 @@ async function main() {
   }
   // Delete old media rows for these reports and insert new
   const reportIds = Object.values(idMap);
-  await admin.from('report_media').delete().in('report_id', reportIds);
-  await admin.from('report_media').insert(mediaRows);
+  await must(admin.from('report_media').delete().in('report_id', reportIds));
+  await must(admin.from('report_media').insert(mediaRows));
 
   // 10. Seed Tasks & Assignments
   const tasksToSeed = [
@@ -320,7 +326,7 @@ async function main() {
       notes: 'Isolate municipal section valve to stop flooding.',
     },
   ];
-  await admin.from('tasks').upsert(tasksToSeed, { onConflict: 'report_id' });
+  await must(admin.from('tasks').upsert(tasksToSeed, { onConflict: 'report_id' }));
 
   // 11. Seed Attestation Votes
   const votes = [
@@ -332,7 +338,7 @@ async function main() {
     { report_id: idMap['svu-pothole-parent'], user_id: users['citizen.one@responsys.test'].id, value: 1 },
     { report_id: idMap['airport-road-water'], user_id: users['citizen.two@responsys.test'].id, value: -1 },
   ];
-  await admin.from('report_votes').upsert(votes, { onConflict: 'report_id,user_id' });
+  await must(admin.from('report_votes').upsert(votes, { onConflict: 'report_id,user_id' }));
 
   // 12. Print demo credentials
   console.log('\n======================================================');

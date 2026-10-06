@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 function sanitizeRedirectPath(path: string | null): string {
   if (!path) return '/feed';
   // Allow only relative paths starting with a single '/' and not '//'
-  if (path.startsWith('/') && !path.startsWith('//')) {
+  if (path.startsWith('/') && !path.startsWith('//') && !path.includes('\\')) {
     return path;
   }
   return '/feed';

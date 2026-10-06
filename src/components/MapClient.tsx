@@ -5,17 +5,17 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMapEvents, useMap } from 'react-leaflet';
 import { parsePoint } from '@/lib/geo';
 
-function ChangeView({ center, zoom }: { center: [number, number], zoom: number }) {
+function ChangeView({ lat, lng, zoom }: { lat: number; lng: number; zoom: number }) {
   const map = useMap();
   useEffect(() => {
     if (map && typeof map.setView === 'function') {
       try {
-        map.setView(center, zoom);
+        map.setView([lat, lng], zoom);
       } catch (e) {
         // Ignore errors during tear-down
       }
     }
-  }, [center, zoom, map]);
+  }, [lat, lng, zoom, map]);
   return null;
 }
 
@@ -54,7 +54,7 @@ interface Props {
 
 export default function MapClient({ reports, onSelectReport, allowClick, onMapClick, center, zoom, volunteerLocations }: Props) {
   const [mounted, setMounted] = useState(false);
-  const defaultCenter: [number, number] = center ?? [13.6288, 79.4192];
+  const [lat, lng] = center ?? [13.6288, 79.4192];
 
   useEffect(() => {
     setMounted(true);
@@ -67,15 +67,15 @@ export default function MapClient({ reports, onSelectReport, allowClick, onMapCl
     <div className="map-shell w-full h-full relative">
       {mounted && (
         <MapContainer
-          center={defaultCenter}
+          center={[lat, lng]}
           zoom={zoom ?? 13}
           className="map-container w-full h-full"
           zoomControl={true}
-          maxBounds={[[13.55, 79.33], [13.72, 79.58]]}
+          maxBounds={[[13.1, 78.9], [14.3, 80.1]]}
           maxBoundsViscosity={1}
-          minZoom={11}
+          minZoom={10}
         >
-          <ChangeView center={defaultCenter} zoom={zoom ?? 13} />
+          <ChangeView lat={lat} lng={lng} zoom={zoom ?? 13} />
           <TileLayer
             attribution="&copy; OpenStreetMap contributors"
             maxZoom={19}
@@ -106,7 +106,7 @@ export default function MapClient({ reports, onSelectReport, allowClick, onMapCl
                     <p className="map-popup-meta">{r.category || r.location_label || 'Civic report'}</p>
                     <p className="map-popup-meta capitalize">{String(r.status).replaceAll('_', ' ')}</p>
                     <p className="map-popup-votes">Urgent {urgent} · Not urgent {notUrgent}</p>
-                    <a className="map-popup-link" href={`/reports/${r.id}`}>View report</a>
+                    <button type="button" className="map-popup-link" onClick={() => onSelectReport?.(r)}>View details</button>
                   </div>
                 </Popup>
               </CircleMarker>
